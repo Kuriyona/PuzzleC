@@ -7,6 +7,8 @@ import { mapToLevel, resolveLocalized } from '../map/format'
 import { PLAYER_R, moveWithCollision } from '../game/collision'
 import { seedLabel } from '../game/rng'
 import { createTrail } from '../game/trail'
+import type { NavGroup } from '../input/useGamepad'
+import { useGamepad, useNav } from '../input/useGamepad'
 import { useT } from '../i18n/useI18n'
 import MazeCanvas from '../components/MazeCanvas.vue'
 import HudBar from '../components/HudBar.vue'
@@ -29,6 +31,8 @@ const props = defineProps<{
 const emit = defineEmits<{ next: []; exit: [] }>()
 
 const t = useT()
+const gamepad = useGamepad()
+const gamepadMode = gamepad.mode
 
 const SPEED = 3.2 // 格/秒
 const ACCEL_TAU = 0.06 // 秒
@@ -171,11 +175,12 @@ function frame(now: number): void {
     const left = pressed.has('ArrowLeft') || pressed.has('a') || pressed.has('A')
     const down = pressed.has('ArrowDown') || pressed.has('s') || pressed.has('S')
     const up = pressed.has('ArrowUp') || pressed.has('w') || pressed.has('W')
-    let ax = (right ? 1 : 0) - (left ? 1 : 0)
-    let ay = (down ? 1 : 0) - (up ? 1 : 0)
-    if (ax !== 0 && ay !== 0) {
-      ax *= Math.SQRT1_2
-      ay *= Math.SQRT1_2
+    let ax = (right ? 1 : 0) - (left ? 1 : 0) + gamepad.axes.x
+    let ay = (down ? 1 : 0) - (up ? 1 : 0) + gamepad.axes.y
+    const magnitude = Math.hypot(ax, ay)
+    if (magnitude > 1) {
+      ax /= magnitude
+      ay /= magnitude
     }
     const tvx = ax * SPEED
     const tvy = ay * SPEED
@@ -219,8 +224,8 @@ function formatTime(ms: number): string {
 }
 
 const pausedActions = computed(() => [
-  { label: t('game.action.resume'), active: true, primary: true, onClick: resumeGame },
-  { label: t('game.action.restartLevel'), onClick: resetLevel },
+  { label: t('game.action.resume'), active: true, primary: true, badge: 'B', onClick: resumeGame },
+  { label: t('game.action.restartLevel'), badge: 'X', onClick: resetLevel },
   { label: t('game.action.menu'), onClick: () => emit('exit') },
 ])
 
@@ -229,11 +234,12 @@ const wonActions = computed(() => {
     label: string
     active?: boolean
     primary?: boolean
+    badge?: string
     onClick: () => void
   }[] = [{ label: t('game.action.review'), active: true, primary: true, onClick: openReview }]
   // 自定义地图没有“下一关”，只有生成迷宫才有
   if (!props.map) actions.push({ label: t('game.action.next'), onClick: () => emit('next') })
-  actions.push({ label: t('game.action.menu'), onClick: () => emit('exit') })
+  actions.push({ label: t('game.action.menu'), badge: 'B', onClick: () => emit('exit') })
   return actions
 })
 
@@ -286,6 +292,50 @@ watch(
   () => props.map,
   () => resetLevel(),
 )
+
+// ---- 手柄 ----
+
+// 回顾界面：播放/暂停、倍速、底部操作可手柄选择（暂停/胜利浮层由 OverlayPanel 置顶接管）
+useNav((): NavGroup[] => {
+  if (status.value !== 'review') return []
+  return [
+    { horizontal: true, items: [{ select: toggleReviewPlay }] },
+    { horizontal: true, items: SPEEDS.map((speed) => ({ select: () => (reviewSpeed.value = speed) })) },
+    {
+      horizontal: true,
+      items: [
+        { select: () => emit('next') },
+        { select: resetLevel },
+        { select: () => emit('exit') },
+      ],
+    },
+  ]
+})
+
+// 游玩中：Select 暂停/继续、X 重开本关、B 暂停（回顾中 B 返回菜单）
+const offGamepad = gamepad.onEvent((event) => {
+  if (event.type === 'select' && (status.value === 'playing' || status.value === 'paused')) {
+    togglePause()
+    return true
+  }
+  if (event.type === 'secondary' && status.value === 'playing') {
+    resetLevel()
+    return true
+  }
+  if (event.type === 'back') {
+    if (status.value === 'playing') {
+      pauseGame()
+      return true
+    }
+    if (status.value === 'review') {
+      emit('exit')
+      return true
+    }
+  }
+  return false
+})
+
+onUnmounted(offGamepad)
 
 onMounted(() => {
   resetLevel()
@@ -397,6 +447,7 @@ onUnmounted(() => {
           :title="t('game.paused')"
           :lines="[]"
           :actions="pausedActions"
+          @back="resumeGame"
         />
         <OverlayPanel
           v-else-if="status === 'won'"
@@ -404,9 +455,10 @@ onUnmounted(() => {
           :title="t('game.won')"
           :lines="statsLines"
           :actions="wonActions"
+          @back="emit('exit')"
         />
       </div>
-      <p class="hint">{{ t('game.hint') }}</p>
+      <p class="hint">{{ t(gamepadMode ? 'game.hint.gamepad' : 'game.hint') }}</p>
     </template>
   </section>
 </template>

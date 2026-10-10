@@ -1,11 +1,27 @@
 <script setup lang="ts">
 import type { Settings } from '../types'
+import { useNav } from '../input/useGamepad'
 import { useT } from '../i18n/useI18n'
 
 defineProps<{ settings: Settings }>()
-defineEmits<{ start: []; settings: []; maps: []; editor: [] }>()
+const emit = defineEmits<{ start: []; settings: []; maps: []; editor: [] }>()
 
 const t = useT()
+
+const GITHUB_URL = 'https://github.com/Kuriyona/PuzzleC'
+
+// 菜单项：一整列竖向排布，上下移动、A 确认（Github 也算一项，免得出鼠标专属）
+const nav = useNav(() => [
+  {
+    items: [
+      { select: () => emit('start') },
+      { select: () => emit('maps') },
+      { select: () => emit('editor') },
+      { select: () => emit('settings') },
+      { select: () => window.open(GITHUB_URL, '_blank', 'noreferrer') },
+    ],
+  },
+])
 </script>
 
 <template>
@@ -25,6 +41,7 @@ const t = useT()
       <nav class="actions">
         <button
           class="interactive item rise"
+          :class="{ 'gp-focus': nav.isFocused(0, 0) }"
           style="animation-delay: 160ms"
           @click="$emit('start')"
         >
@@ -32,6 +49,7 @@ const t = useT()
         </button>
         <button
           class="interactive item rise"
+          :class="{ 'gp-focus': nav.isFocused(0, 1) }"
           style="animation-delay: 230ms"
           @click="$emit('maps')"
         >
@@ -39,6 +57,7 @@ const t = useT()
         </button>
         <button
           class="interactive item rise"
+          :class="{ 'gp-focus': nav.isFocused(0, 2) }"
           style="animation-delay: 300ms"
           @click="$emit('editor')"
         >
@@ -46,6 +65,7 @@ const t = useT()
         </button>
         <button
           class="interactive item rise"
+          :class="{ 'gp-focus': nav.isFocused(0, 3) }"
           style="animation-delay: 370ms"
           @click="$emit('settings')"
         >
@@ -53,8 +73,9 @@ const t = useT()
         </button>
         <a
           class="interactive item rise"
+          :class="{ 'gp-focus': nav.isFocused(0, 4) }"
           style="animation-delay: 440ms"
-          href="https://github.com/Kuriyona/PuzzleC"
+          :href="GITHUB_URL"
           target="_blank"
           rel="noreferrer"
         >

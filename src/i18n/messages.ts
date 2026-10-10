@@ -150,6 +150,11 @@ const zhHans = {
   'game.paused': '已暂停',
   'game.won': '通关',
   'game.hint': 'ESC 暂停 · R 重开',
+  'game.hint.gamepad': '摇杆 / 十字键移动 · Select 暂停 · X 重开',
+  // 手柄
+  'gamepad.editorTitle': '手柄不支持编辑器',
+  'gamepad.editorLine': '地图编辑器需要鼠标与键盘操作，手柄无法编辑地图。手柄可用于游玩与菜单导航。',
+  'gamepad.editorOk': '知道了',
   // 回顾
   'game.review.title': '轨迹回顾',
   'game.review.progress': '播放进度',
@@ -320,6 +325,11 @@ export const MESSAGES: Record<LocaleId, Catalogue> = {
     'game.paused': '已暫停',
     'game.won': '通關',
     'game.hint': 'ESC 暫停 · R 重開',
+    'game.hint.gamepad': '搖桿 / 十字鍵移動 · Select 暫停 · X 重開',
+    // 手柄
+    'gamepad.editorTitle': '手柄不支援編輯器',
+    'gamepad.editorLine': '地圖編輯器需要滑鼠與鍵盤操作，手柄無法編輯地圖。手柄可用於遊玩與選單導覽。',
+    'gamepad.editorOk': '知道了',
     'game.review.title': '軌跡回顧',
     'game.review.progress': '播放進度',
     'game.reviewMap': '迷宮全圖與軌跡回放',
@@ -478,6 +488,12 @@ export const MESSAGES: Record<LocaleId, Catalogue> = {
     'game.paused': 'Paused',
     'game.won': 'Cleared',
     'game.hint': 'ESC to pause · R to restart',
+    'game.hint.gamepad': 'Stick / D-pad to move · Select to pause · X to restart',
+    // 手柄
+    'gamepad.editorTitle': 'Gamepad not supported here',
+    'gamepad.editorLine':
+      'The map editor needs a mouse and keyboard, so it cannot be edited with a gamepad. Gamepad input works for playing and menu navigation.',
+    'gamepad.editorOk': 'Got it',
     'game.review.title': 'Trail Replay',
     'game.review.progress': 'Playback progress',
     'game.reviewMap': 'Full maze map and trail replay',
@@ -636,6 +652,12 @@ export const MESSAGES: Record<LocaleId, Catalogue> = {
     'game.paused': '一時停止中',
     'game.won': 'クリア',
     'game.hint': 'ESC で一時停止 · R でやり直し',
+    'game.hint.gamepad': 'スティック / 十字キーで移動 · Select で一時停止 · X でやり直し',
+    // 手柄
+    'gamepad.editorTitle': 'エディターは非対応',
+    'gamepad.editorLine':
+      'マップエディターはマウスとキーボードが必要で、ゲームパッドでは編集できません。ゲームパッドはプレイとメニュー操作に使えます。',
+    'gamepad.editorOk': '了解',
     'game.review.title': '軌跡リプレイ',
     'game.review.progress': '再生位置',
     'game.reviewMap': '迷宮全体と軌跡のリプレイ',

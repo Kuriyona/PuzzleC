@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { seedLabel } from '../game/rng'
 import { useT } from '../i18n/useI18n'
+import GpKey from './GpKey.vue'
 
 defineProps<{
   levelIndex: number
@@ -38,8 +39,14 @@ function formatTime(ms: number): string {
       </template>
     </div>
     <div class="controls">
-      <button class="interactive btn" @click="$emit('pause')">{{ t('game.hud.pause') }}</button>
-      <button class="interactive btn" @click="$emit('restart')">{{ t('game.hud.restart') }}</button>
+      <button class="interactive btn" @click="$emit('pause')">
+        {{ t('game.hud.pause') }}
+        <GpKey k="⏸" />
+      </button>
+      <button class="interactive btn" @click="$emit('restart')">
+        {{ t('game.hud.restart') }}
+        <GpKey k="X" />
+      </button>
     </div>
   </header>
 </template>

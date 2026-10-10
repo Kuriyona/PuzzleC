@@ -12,6 +12,7 @@ import {
 import { DEFAULT_GEN_PARAMS, mazeSizeOf, parseSeed, radiusOf } from './game/gen'
 import { LOCALE_TAGS } from './i18n/messages'
 import { provideLocale } from './i18n/useI18n'
+import { provideGamepad } from './input/useGamepad'
 import { randomSeed } from './game/rng'
 import IntroScreen from './screens/IntroScreen.vue'
 import MenuScreen from './screens/MenuScreen.vue'
@@ -40,6 +41,8 @@ watch(settings, () => saveSettings(settings.value), { deep: true })
 // 界面语言：注入给所有后代组件；同时同步 <html lang> 让浏览器选对字体与断行规则
 const locale = computed<LocaleId>(() => settings.value.locale)
 provideLocale(locale)
+// 手柄输入：全局轮询 + 事件分发，界面用 useNav / useGamepad 消费
+provideGamepad()
 watch(
   locale,
   (value) => (document.documentElement.lang = LOCALE_TAGS[value]),

@@ -1,10 +1,13 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import type { Settings } from '../types'
 import { MAZE_THEME_OPTIONS, UI_THEME_OPTIONS } from '../game/settings'
 import type { MessageKey } from '../i18n/messages'
 import { LOCALE_OPTIONS } from '../i18n/messages'
+import type { NavGroup, NavItem } from '../input/useGamepad'
+import { useNav } from '../input/useGamepad'
 import { useT } from '../i18n/useI18n'
+import GpKey from '../components/GpKey.vue'
 
 const model = defineModel<Settings>({ required: true })
 const emit = defineEmits<{ finish: [] }>()
@@ -60,6 +63,31 @@ function advance(): void {
   }
   stepIndex.value++
 }
+
+/** 当前步骤的可手柄选择项（选项行）；无选项的步骤返回空 */
+function optionItems(): NavItem[] {
+  if (step.value === 'language') {
+    return LOCALE_OPTIONS.map((opt) => ({ select: () => apply({ locale: opt.id }) }))
+  }
+  if (step.value === 'uiTheme') {
+    return UI_THEME_OPTIONS.map((opt) => ({ select: () => apply({ uiTheme: opt.id }) }))
+  }
+  if (step.value === 'mazeTheme') {
+    return MAZE_THEME_OPTIONS.map((opt) => ({ select: () => apply({ mazeTheme: opt.id }) }))
+  }
+  return []
+}
+
+// 有选项时左右选择、A 确认；无选项时 A / ▶ 直接下一步（▶ 在任何步骤都下一步）
+const nav = useNav(
+  (): NavGroup[] => {
+    const items = optionItems()
+    return items.length ? [{ items, horizontal: true }] : []
+  },
+  { onStart: advance, onConfirm: advance },
+)
+
+watch(stepIndex, () => nav.reset())
 </script>
 
 <template>
@@ -82,10 +110,10 @@ function advance(): void {
 
         <div v-else-if="step === 'language'" class="options">
           <button
-            v-for="opt in LOCALE_OPTIONS"
+            v-for="(opt, i) in LOCALE_OPTIONS"
             :key="opt.id"
             class="interactive opt"
-            :class="{ 'is-active': model.locale === opt.id }"
+            :class="{ 'is-active': model.locale === opt.id, 'gp-focus': nav.isFocused(0, i) }"
             @click="apply({ locale: opt.id })"
           >
             {{ opt.label }}
@@ -94,10 +122,10 @@ function advance(): void {
 
         <div v-else-if="step === 'uiTheme'" class="options">
           <button
-            v-for="opt in UI_THEME_OPTIONS"
+            v-for="(opt, i) in UI_THEME_OPTIONS"
             :key="opt.id"
             class="interactive opt"
-            :class="{ 'is-active': model.uiTheme === opt.id }"
+            :class="{ 'is-active': model.uiTheme === opt.id, 'gp-focus': nav.isFocused(0, i) }"
             @click="apply({ uiTheme: opt.id })"
           >
             {{ t(opt.labelKey) }}
@@ -106,10 +134,10 @@ function advance(): void {
 
         <div v-else-if="step === 'mazeTheme'" class="options">
           <button
-            v-for="opt in MAZE_THEME_OPTIONS"
+            v-for="(opt, i) in MAZE_THEME_OPTIONS"
             :key="opt.id"
             class="interactive opt"
-            :class="{ 'is-active': model.mazeTheme === opt.id }"
+            :class="{ 'is-active': model.mazeTheme === opt.id, 'gp-focus': nav.isFocused(0, i) }"
             @click="apply({ mazeTheme: opt.id })"
           >
             {{ t(opt.labelKey) }}
@@ -124,6 +152,7 @@ function advance(): void {
           </span>
           <button ref="nextButton" class="interactive next" @click="advance">
             {{ t(isLast ? 'intro.finish' : 'intro.next') }}
+            <GpKey k="▶" />
           </button>
         </footer>
       </div>

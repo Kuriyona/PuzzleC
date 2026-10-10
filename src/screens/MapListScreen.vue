@@ -9,12 +9,16 @@ import { deleteMap, estimateStorage, listMaps, saveMap } from '../map/store'
 import { newId } from '../map/draft'
 import { LOCALE_TAGS } from '../i18n/messages'
 import { useLocale, useT } from '../i18n/useI18n'
+import type { NavGroup } from '../input/useGamepad'
+import { useNav } from '../input/useGamepad'
 import OverlayPanel from '../components/OverlayPanel.vue'
+import GpKey from '../components/GpKey.vue'
 
 interface DialogAction {
   label: string
   active?: boolean
   primary?: boolean
+  badge?: string
   onClick: () => void
 }
 
@@ -22,6 +26,8 @@ interface Dialog {
   title: string
   lines: string[]
   actions: DialogAction[]
+  /** B 键（返回）行为；缺省则关闭弹窗 */
+  back?: () => void
 }
 
 const emit = defineEmits<{ play: [map: MapFile]; edit: [id: string]; back: [] }>()
@@ -125,7 +131,7 @@ function confirmDeleteSelected(): void {
           if (explorer.value) await loadEstimate()
         },
       },
-      { label: t('common.cancel'), onClick: () => (dialog.value = null) },
+      { label: t('common.cancel'), badge: 'B', onClick: () => (dialog.value = null) },
     ],
   }
 }
@@ -171,7 +177,7 @@ function guard(map: MapFile, proceed: () => void): void {
           proceed()
         },
       },
-      { label: t('common.back'), onClick: () => (dialog.value = null) },
+      { label: t('common.back'), badge: 'B', onClick: () => (dialog.value = null) },
     ],
   }
 }
@@ -190,7 +196,7 @@ function confirmDelete(map: MapFile): void {
           await refresh()
         },
       },
-      { label: t('common.cancel'), onClick: () => (dialog.value = null) },
+      { label: t('common.cancel'), badge: 'B', onClick: () => (dialog.value = null) },
     ],
   }
 }
@@ -215,7 +221,7 @@ function showError(lines: string[]): void {
   dialog.value = {
     title: t('map.err.title'),
     lines,
-    actions: [{ label: t('common.back'), primary: true, onClick: () => (dialog.value = null) }],
+    actions: [{ label: t('common.back'), primary: true, badge: 'B', onClick: () => (dialog.value = null) }],
   }
 }
 
@@ -276,6 +282,10 @@ async function onImportFile(e: Event): Promise<void> {
   dialog.value = {
     title: t('map.warn.title'),
     lines: issueLines(issues),
+    back: () => {
+      dialog.value = null
+      input.value = ''
+    },
     actions: [
       {
         label: t('map.warn.ignore'),
@@ -287,6 +297,7 @@ async function onImportFile(e: Event): Promise<void> {
       },
       {
         label: t('common.back'),
+        badge: 'B',
         onClick: () => {
           dialog.value = null
           input.value = ''
@@ -296,6 +307,55 @@ async function onImportFile(e: Event): Promise<void> {
   }
 }
 
+function onDialogBack(): void {
+  const current = dialog.value
+  if (!current) return
+  if (current.back) current.back()
+  else dialog.value = null
+}
+
+// 手柄导航：首组是页头操作，之后每张地图一行（左右切换行内按钮）；B = 返回。
+// 弹窗打开时由 OverlayPanel 置顶接管，这里收不到事件
+const nav = useNav(
+  (): NavGroup[] => {
+    if (explorer.value) {
+      return [
+        { horizontal: true, items: [{ select: closeExplorer }] },
+        {
+          horizontal: true,
+          items: [
+            { select: toggleSelectAll, disabled: maps.value.length === 0 },
+            { select: confirmDeleteSelected, disabled: selectedCount.value === 0 },
+          ],
+        },
+        ...maps.value.map((map) => ({
+          horizontal: true,
+          items: [{ select: () => toggleSelect(map.manifest.id) }],
+        })),
+      ]
+    }
+    return [
+      {
+        horizontal: true,
+        items: [
+          { select: openExplorer },
+          { select: pickFile },
+        ],
+      },
+      ...maps.value.map((map) => ({
+        horizontal: true,
+        items: [
+          { select: () => guard(map, () => emit('play', map)), disabled: !isPlayable(map) },
+          { select: () => guard(map, () => emit('edit', map.manifest.id)) },
+          { select: () => exportMap(map) },
+          { select: () => confirmDelete(map) },
+        ],
+      })),
+    ]
+  },
+  { onBack: () => emit('back') },
+)
+
 onMounted(refresh)
 </script>
 
@@ -304,14 +364,34 @@ onMounted(refresh)
     <header class="head">
       <h2>{{ t('maps.title') }}</h2>
       <div class="head-actions">
-        <button v-if="explorer" class="interactive act" @click="closeExplorer">
+        <button
+          v-if="explorer"
+          class="interactive act"
+          :class="{ 'gp-focus': nav.isFocused(0, 0) }"
+          @click="closeExplorer"
+        >
           {{ t('maps.explorerClose') }}
         </button>
         <template v-else>
-          <button class="interactive act" @click="openExplorer">{{ t('maps.explorer') }}</button>
-          <button class="interactive act" @click="pickFile">{{ t('maps.import') }}</button>
+          <button
+            class="interactive act"
+            :class="{ 'gp-focus': nav.isFocused(0, 0) }"
+            @click="openExplorer"
+          >
+            {{ t('maps.explorer') }}
+          </button>
+          <button
+            class="interactive act"
+            :class="{ 'gp-focus': nav.isFocused(0, 1) }"
+            @click="pickFile"
+          >
+            {{ t('maps.import') }}
+          </button>
         </template>
-        <button class="interactive act" @click="$emit('back')">{{ t('common.back') }}</button>
+        <button class="interactive act" @click="$emit('back')">
+          {{ t('common.back') }}
+          <GpKey k="B" />
+        </button>
       </div>
     </header>
 
@@ -342,7 +422,7 @@ onMounted(refresh)
           <i :style="{ width: `${usagePercent}%` }"></i>
         </div>
         <div class="storage-controls">
-          <label class="check">
+          <label class="check" :class="{ 'gp-focus': nav.isFocused(1, 0) }">
             <input type="checkbox" :checked="allSelected" @change="toggleSelectAll" />
             <span>{{ t('maps.selectAll') }}</span>
           </label>
@@ -350,6 +430,7 @@ onMounted(refresh)
           <span class="note">{{ t('maps.storageTotal', { count: maps.length, size: formatBytes(totalBytes) }) }}</span>
           <button
             class="interactive act"
+            :class="{ 'gp-focus': nav.isFocused(1, 1) }"
             :disabled="selectedCount === 0"
             @click="confirmDeleteSelected"
           >
@@ -360,8 +441,8 @@ onMounted(refresh)
 
       <p v-if="maps.length === 0" class="empty">{{ t('maps.empty') }}</p>
       <ul v-else class="list">
-        <li v-for="map in maps" :key="map.manifest.id" class="item">
-          <label class="check grow">
+        <li v-for="(map, i) in maps" :key="map.manifest.id" class="item">
+          <label class="check grow" :class="{ 'gp-focus': nav.isFocused(i + 2, 0) }">
             <input
               type="checkbox"
               :checked="selectedIds.has(map.manifest.id)"
@@ -378,7 +459,7 @@ onMounted(refresh)
       <p v-if="maps.length === 0" class="empty">{{ t('maps.empty') }}</p>
 
       <ul v-else class="list">
-        <li v-for="map in maps" :key="map.manifest.id" class="item">
+        <li v-for="(map, i) in maps" :key="map.manifest.id" class="item">
           <div class="info">
             <span class="name">{{ mapName(map) }}</span>
             <span class="meta">
@@ -389,17 +470,34 @@ onMounted(refresh)
           <div class="actions">
             <button
               class="interactive act"
+              :class="{ 'gp-focus': nav.isFocused(i + 1, 0) }"
               :disabled="!isPlayable(map)"
               @click="guard(map, () => emit('play', map))"
             >
               {{ t('maps.play') }}
             </button>
             <span v-if="!isPlayable(map)" class="note">{{ t('maps.noGoal') }}</span>
-            <button class="interactive act" @click="guard(map, () => emit('edit', map.manifest.id))">
+            <button
+              class="interactive act"
+              :class="{ 'gp-focus': nav.isFocused(i + 1, 1) }"
+              @click="guard(map, () => emit('edit', map.manifest.id))"
+            >
               {{ t('maps.edit') }}
             </button>
-            <button class="interactive act" @click="exportMap(map)">{{ t('maps.export') }}</button>
-            <button class="interactive act" @click="confirmDelete(map)">{{ t('maps.delete') }}</button>
+            <button
+              class="interactive act"
+              :class="{ 'gp-focus': nav.isFocused(i + 1, 2) }"
+              @click="exportMap(map)"
+            >
+              {{ t('maps.export') }}
+            </button>
+            <button
+              class="interactive act"
+              :class="{ 'gp-focus': nav.isFocused(i + 1, 3) }"
+              @click="confirmDelete(map)"
+            >
+              {{ t('maps.delete') }}
+            </button>
           </div>
         </li>
       </ul>
@@ -410,6 +508,7 @@ onMounted(refresh)
       :title="dialog.title"
       :lines="dialog.lines"
       :actions="dialog.actions"
+      @back="onDialogBack"
     />
   </section>
 </template>

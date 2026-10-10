@@ -86,6 +86,29 @@ button {
   border-color: var(--inv-bg);
 }
 
+/* 手柄焦点：外描边高亮（outline 画在元素外部、叠在父级底色上，故取 --fg 而非元素自身的反色）。
+   放在 .interactive 规则之后，才能盖过 :focus-visible 的 outline: none */
+.gp-focus,
+.interactive.gp-focus {
+  outline: 2px solid var(--fg);
+  outline-offset: 3px;
+}
+
+/* 手柄按键标志（A / B / ▶ 等），仅手柄模式下显示 */
+.gp-key {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 6px;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.5;
+  letter-spacing: 0;
+  vertical-align: middle;
+  opacity: 0.85;
+}
+
 .no-anim *,
 .no-anim *::before,
 .no-anim *::after {

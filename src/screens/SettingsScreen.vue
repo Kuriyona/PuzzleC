@@ -2,12 +2,39 @@
 import type { Settings } from '../types'
 import { MAZE_THEME_OPTIONS, UI_THEME_OPTIONS, DEFAULT_SETTINGS } from '../game/settings'
 import { LOCALE_OPTIONS } from '../i18n/messages'
+import type { NavGroup } from '../input/useGamepad'
+import { useNav } from '../input/useGamepad'
 import { useT } from '../i18n/useI18n'
+import GpKey from '../components/GpKey.vue'
 
 const model = defineModel<Settings>({ required: true })
-defineEmits<{ back: [] }>()
+const emit = defineEmits<{ back: [] }>()
 
 const t = useT()
+
+// 每一行是一个横向组；上下切换行、左右切换行内选项，B = 返回
+const nav = useNav(
+  (): NavGroup[] => [
+    { horizontal: true, items: LOCALE_OPTIONS.map((opt) => ({ select: () => apply({ locale: opt.id }) })) },
+    {
+      horizontal: true,
+      items: UI_THEME_OPTIONS.map((opt) => ({ select: () => apply({ uiTheme: opt.id }) })),
+    },
+    {
+      horizontal: true,
+      items: MAZE_THEME_OPTIONS.map((opt) => ({ select: () => apply({ mazeTheme: opt.id }) })),
+    },
+    {
+      horizontal: true,
+      items: [
+        { select: () => apply({ animations: true }) },
+        { select: () => apply({ animations: false }) },
+      ],
+    },
+    { horizontal: true, items: [{ select: restoreDefaults }] },
+  ],
+  { onBack: () => emit('back') },
+)
 
 function apply(patch: Partial<Settings>): void {
   model.value = { ...model.value, ...patch }
@@ -22,7 +49,10 @@ function restoreDefaults(): void {
   <section class="settings rise">
     <header class="head">
       <h2>{{ t('settings.title') }}</h2>
-      <button class="interactive back" @click="$emit('back')">{{ t('settings.back') }}</button>
+      <button class="interactive back" @click="$emit('back')">
+        {{ t('settings.back') }}
+        <GpKey k="B" />
+      </button>
     </header>
 
     <div class="rows">
@@ -30,10 +60,10 @@ function restoreDefaults(): void {
         <span class="label">{{ t('settings.language') }}</span>
         <div class="seg">
           <button
-            v-for="opt in LOCALE_OPTIONS"
+            v-for="(opt, i) in LOCALE_OPTIONS"
             :key="opt.id"
             class="interactive seg-btn"
-            :class="{ 'is-active': model.locale === opt.id }"
+            :class="{ 'is-active': model.locale === opt.id, 'gp-focus': nav.isFocused(0, i) }"
             @click="apply({ locale: opt.id })"
           >
             {{ opt.label }}
@@ -45,10 +75,10 @@ function restoreDefaults(): void {
         <span class="label">{{ t('settings.uiTheme') }}</span>
         <div class="seg">
           <button
-            v-for="opt in UI_THEME_OPTIONS"
+            v-for="(opt, i) in UI_THEME_OPTIONS"
             :key="opt.id"
             class="interactive seg-btn"
-            :class="{ 'is-active': model.uiTheme === opt.id }"
+            :class="{ 'is-active': model.uiTheme === opt.id, 'gp-focus': nav.isFocused(1, i) }"
             @click="apply({ uiTheme: opt.id })"
           >
             {{ t(opt.labelKey) }}
@@ -60,10 +90,10 @@ function restoreDefaults(): void {
         <span class="label">{{ t('settings.mazeTheme') }}</span>
         <div class="seg">
           <button
-            v-for="opt in MAZE_THEME_OPTIONS"
+            v-for="(opt, i) in MAZE_THEME_OPTIONS"
             :key="opt.id"
             class="interactive seg-btn"
-            :class="{ 'is-active': model.mazeTheme === opt.id }"
+            :class="{ 'is-active': model.mazeTheme === opt.id, 'gp-focus': nav.isFocused(2, i) }"
             @click="apply({ mazeTheme: opt.id })"
           >
             {{ t(opt.labelKey) }}
@@ -76,14 +106,14 @@ function restoreDefaults(): void {
         <div class="seg">
           <button
             class="interactive seg-btn"
-            :class="{ 'is-active': model.animations }"
+            :class="{ 'is-active': model.animations, 'gp-focus': nav.isFocused(3, 0) }"
             @click="apply({ animations: true })"
           >
             {{ t('common.on') }}
           </button>
           <button
             class="interactive seg-btn"
-            :class="{ 'is-active': !model.animations }"
+            :class="{ 'is-active': !model.animations, 'gp-focus': nav.isFocused(3, 1) }"
             @click="apply({ animations: false })"
           >
             {{ t('common.off') }}
@@ -93,7 +123,11 @@ function restoreDefaults(): void {
     </div>
 
     <footer class="foot">
-      <button class="interactive reset" @click="restoreDefaults">
+      <button
+        class="interactive reset"
+        :class="{ 'gp-focus': nav.isFocused(4, 0) }"
+        @click="restoreDefaults"
+      >
         {{ t('settings.reset') }}
       </button>
     </footer>

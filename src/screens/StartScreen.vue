@@ -14,12 +14,37 @@ import {
   parseSeed,
   radiusOf,
 } from '../game/gen'
+import type { NavGroup } from '../input/useGamepad'
+import { useNav } from '../input/useGamepad'
 import { useT } from '../i18n/useI18n'
+import GpKey from '../components/GpKey.vue'
 
 const model = defineModel<GenParams>({ required: true })
-defineEmits<{ start: []; back: [] }>()
+const emit = defineEmits<{ start: []; back: [] }>()
 
 const t = useT()
+
+// 预设按钮可选手柄焦点（自定义数值 / 种子需要键盘输入，不参与手柄导航）；
+// ▶ = 开始随机游戏，B = 返回
+const nav = useNav(
+  (): NavGroup[] => [
+    {
+      horizontal: true,
+      items: [
+        ...SIZE_OPTIONS.map((opt) => ({ select: () => apply({ sizePreset: opt.id }) })),
+        { select: () => apply({ sizePreset: 'custom' }) },
+      ],
+    },
+    {
+      horizontal: true,
+      items: [
+        ...RADIUS_OPTIONS.map((opt) => ({ select: () => apply({ radiusPreset: opt.id }) })),
+        { select: () => apply({ radiusPreset: 'custom' }) },
+      ],
+    },
+  ],
+  { onStart: () => emit('start'), onBack: () => emit('back') },
+)
 
 function apply(patch: Partial<GenParams>): void {
   model.value = { ...model.value, ...patch }
@@ -57,7 +82,10 @@ const summary = computed(() => {
   <section class="start rise">
     <header class="head">
       <h2>{{ t('start.title') }}</h2>
-      <button class="interactive back" @click="$emit('back')">{{ t('common.back') }}</button>
+      <button class="interactive back" @click="$emit('back')">
+        {{ t('common.back') }}
+        <GpKey k="B" />
+      </button>
     </header>
 
     <div class="rows">
@@ -75,17 +103,20 @@ const summary = computed(() => {
         <span class="label">{{ t('start.size') }}</span>
         <div class="seg">
           <button
-            v-for="opt in SIZE_OPTIONS"
+            v-for="(opt, i) in SIZE_OPTIONS"
             :key="opt.id"
             class="interactive seg-btn"
-            :class="{ 'is-active': model.sizePreset === opt.id }"
+            :class="{ 'is-active': model.sizePreset === opt.id, 'gp-focus': nav.isFocused(0, i) }"
             @click="apply({ sizePreset: opt.id })"
           >
             {{ t(opt.labelKey) }} · {{ opt.cells }}
           </button>
           <button
             class="interactive seg-btn"
-            :class="{ 'is-active': model.sizePreset === 'custom' }"
+            :class="{
+              'is-active': model.sizePreset === 'custom',
+              'gp-focus': nav.isFocused(0, SIZE_OPTIONS.length),
+            }"
             @click="apply({ sizePreset: 'custom' })"
           >
             {{ t('start.custom') }}
@@ -108,17 +139,20 @@ const summary = computed(() => {
         <span class="label">{{ t('start.radius') }}</span>
         <div class="seg">
           <button
-            v-for="opt in RADIUS_OPTIONS"
+            v-for="(opt, i) in RADIUS_OPTIONS"
             :key="opt.id"
             class="interactive seg-btn"
-            :class="{ 'is-active': model.radiusPreset === opt.id }"
+            :class="{ 'is-active': model.radiusPreset === opt.id, 'gp-focus': nav.isFocused(1, i) }"
             @click="apply({ radiusPreset: opt.id })"
           >
             {{ t(opt.labelKey) }} · {{ opt.value }}
           </button>
           <button
             class="interactive seg-btn"
-            :class="{ 'is-active': model.radiusPreset === 'custom' }"
+            :class="{
+              'is-active': model.radiusPreset === 'custom',
+              'gp-focus': nav.isFocused(1, RADIUS_OPTIONS.length),
+            }"
             @click="apply({ radiusPreset: 'custom' })"
           >
             {{ t('start.custom') }}
@@ -155,7 +189,10 @@ const summary = computed(() => {
 
     <footer class="foot">
       <span class="summary">{{ summary }}</span>
-      <button class="interactive go" @click="$emit('start')">{{ t('start.go') }}</button>
+      <button class="interactive go" @click="$emit('start')">
+        {{ t('start.go') }}
+        <GpKey k="▶" />
+      </button>
     </footer>
   </section>
 </template>

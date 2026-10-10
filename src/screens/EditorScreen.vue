@@ -17,6 +17,7 @@ import { loadMap, saveMap } from '../map/store'
 import type { MessageKey } from '../i18n/messages'
 import { LOCALE_TAGS } from '../i18n/messages'
 import { useLocale, useT } from '../i18n/useI18n'
+import { useGamepad } from '../input/useGamepad'
 import EditorCanvas from '../components/EditorCanvas.vue'
 import LocalizedTextEditor from '../components/LocalizedTextEditor.vue'
 import OverlayPanel from '../components/OverlayPanel.vue'
@@ -26,6 +27,7 @@ const emit = defineEmits<{ back: [] }>()
 
 const t = useT()
 const locale = useLocale()
+const gamepad = useGamepad()
 
 const TOOL_OPTIONS = [
   { id: 'wall', labelKey: 'editor.tool.wall' },
@@ -46,6 +48,24 @@ const sizeCols = ref(draft.value.cols)
 const sizeRows = ref(draft.value.rows)
 const pendingResize = ref<{ cols: number; rows: number; count: number } | null>(null)
 const discardOpen = ref(false)
+
+// 编辑器不支持手柄：进入时已处于手柄模式、或编辑器打开后接入手柄，都弹窗说明（每次进入只提示一次）
+const gamepadNotice = ref(false)
+let noticeShown = false
+
+function showGamepadNotice(): void {
+  if (noticeShown) return
+  noticeShown = true
+  gamepadNotice.value = true
+}
+
+watch(
+  [gamepad.mode, gamepad.connected],
+  ([mode, connected]) => {
+    if (mode || connected) showGamepadNotice()
+  },
+  { immediate: true },
+)
 
 function touch(): void {
   rev.value++
@@ -152,6 +172,7 @@ const resizeActions = computed(() => {
     },
     {
       label: t('common.cancel'),
+      badge: 'B',
       onClick: () => {
         pendingResize.value = null
         syncSize()
@@ -226,11 +247,20 @@ const discardActions = computed(() => [
       emit('back')
     },
   },
-  { label: t('editor.discardCancel'), onClick: () => (discardOpen.value = false) },
+  { label: t('editor.discardCancel'), badge: 'B', onClick: () => (discardOpen.value = false) },
 ])
 
 const loadFailedActions = computed(() => [
-  { label: t('common.back'), primary: true, onClick: () => emit('back') },
+  { label: t('common.back'), primary: true, badge: 'B', onClick: () => emit('back') },
+])
+
+const gamepadNoticeActions = computed(() => [
+  {
+    label: t('gamepad.editorOk'),
+    primary: true,
+    badge: 'B',
+    onClick: () => (gamepadNotice.value = false),
+  },
 ])
 
 onMounted(async () => {
@@ -388,18 +418,29 @@ onMounted(async () => {
       :title="t('editor.shrinkTitle')"
       :lines="[t('editor.shrinkLine', { cols: pendingResize.cols, rows: pendingResize.rows, count: pendingResize.count })]"
       :actions="resizeActions"
+      @back="pendingResize = null"
     />
     <OverlayPanel
       v-if="discardOpen"
       :title="t('editor.discardTitle')"
       :lines="[t('editor.discardLine')]"
       :actions="discardActions"
+      @back="discardOpen = false"
     />
     <OverlayPanel
       v-if="loadFailed"
       :title="t('map.err.title')"
       :lines="[t('map.err.load')]"
       :actions="loadFailedActions"
+      @back="emit('back')"
+    />
+    <OverlayPanel
+      v-if="gamepadNotice"
+      key="gamepad"
+      :title="t('gamepad.editorTitle')"
+      :lines="[t('gamepad.editorLine')]"
+      :actions="gamepadNoticeActions"
+      @back="gamepadNotice = false"
     />
   </section>
 </template>

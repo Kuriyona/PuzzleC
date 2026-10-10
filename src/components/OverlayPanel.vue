@@ -1,22 +1,33 @@
 <script setup lang="ts">
 import { nextTick, onMounted, ref } from 'vue'
+import { useNav } from '../input/useGamepad'
+import GpKey from './GpKey.vue'
 
 interface Action {
   label: string
   /** 反色高亮（实心），与是否聚焦无关 */
   active?: boolean
-  /** 主操作：挂载后自动聚焦 */
+  /** 主操作：挂载后自动聚焦（键盘）＋手柄初始焦点 */
   primary?: boolean
+  /** 手柄按键标志（如 'B'） */
+  badge?: string
   onClick: () => void
 }
 
-defineProps<{ title: string; lines: string[]; actions: Action[] }>()
+const props = defineProps<{ title: string; lines: string[]; actions: Action[] }>()
+const emit = defineEmits<{ back: [] }>()
 
 const primaryButton = ref<HTMLButtonElement | null>(null)
 
 function capturePrimary(el: unknown, action: Action): void {
   if (action.primary) primaryButton.value = (el as HTMLButtonElement | null) ?? null
 }
+
+// 浮层置顶接管手柄：吞掉全部事件，方向在按钮间移动，B 触发 back
+useNav(
+  () => [{ items: props.actions.map((a) => ({ select: a.onClick, initial: a.primary })) }],
+  { onBack: () => emit('back'), consumeAll: true },
+)
 
 onMounted(async () => {
   await nextTick()
@@ -41,6 +52,7 @@ onMounted(async () => {
           @click="action.onClick()"
         >
           {{ action.label }}
+          <GpKey v-if="action.badge" :k="action.badge" />
         </button>
       </div>
     </div>
