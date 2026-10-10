@@ -9,7 +9,7 @@ export interface LevelSpec {
   /** 水平墙段：[线索引, 列]（线 y = k-0.5） */
   h?: [number, number][]
   start?: Cell
-  goal?: Cell
+  goals?: Cell[]
 }
 
 /** 外圈墙恒存在；其余墙段仅由 v/h 指定。 */
@@ -28,7 +28,16 @@ export function makeLevel(spec: LevelSpec): Level {
   for (const [lineX, row] of spec.v ?? []) vWalls[row * (cols + 1) + lineX] = 1
   for (const [lineY, col] of spec.h ?? []) hWalls[lineY * cols + col] = 1
   const start: Cell = spec.start ?? { x: 0, y: 0 }
-  return { seed: 0, cols, rows, hWalls, vWalls, start, goal: spec.goal ?? { ...start } }
+  return {
+    seed: 0,
+    cols,
+    rows,
+    hWalls,
+    vWalls,
+    start,
+    goals: spec.goals ?? [{ ...start }],
+    labels: [],
+  }
 }
 
 /** 逐格 '#'（可见）/ '.'，第 0 行对应 y=0。 */

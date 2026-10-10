@@ -57,7 +57,7 @@ describe('generateMaze', () => {
       const level = generateMaze(n, n, 4242)
       const dist = bfs(level, level.start)
       for (let i = 0; i < dist.length; i++) expect(dist[i]).toBeGreaterThanOrEqual(0)
-      const goalIndex = level.goal.y * level.cols + level.goal.x
+      const goalIndex = level.goals[0].y * level.cols + level.goals[0].x
       expect(dist[goalIndex]).toBeGreaterThan(0)
       let max = 0
       for (let i = 0; i < dist.length; i++) {

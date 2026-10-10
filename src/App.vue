@@ -17,11 +17,18 @@ import OverlayPanel from './components/OverlayPanel.vue'
 import MenuScreen from './screens/MenuScreen.vue'
 import SettingsScreen from './screens/SettingsScreen.vue'
 import GameScreen from './screens/GameScreen.vue'
+import MapListScreen from './screens/MapListScreen.vue'
+import EditorScreen from './screens/EditorScreen.vue'
+import type { MapFile } from './map/format'
 
 const screen = ref<Screen>('menu')
 const settings = ref<Settings>(loadSettings())
 const seed = ref<number>(randomSeed())
 const levelIndex = ref<number>(1)
+/** 正在游玩的自定义地图；null = 生成迷宫 */
+const playingMap = ref<MapFile | null>(null)
+/** 编辑器要打开的地图 id；null = 新建 */
+const editingMapId = ref<string | null>(null)
 
 watch(settings, () => saveSettings(settings.value), { deep: true })
 
@@ -90,12 +97,23 @@ function startGame(): void {
 function beginGame(): void {
   seed.value = randomSeed()
   levelIndex.value = 1
+  playingMap.value = null
   screen.value = 'game'
 }
 
 function nextLevel(): void {
   seed.value = randomSeed()
   levelIndex.value++
+}
+
+function playMap(map: MapFile): void {
+  playingMap.value = map
+  screen.value = 'game'
+}
+
+function openEditor(id: string | null): void {
+  editingMapId.value = id
+  screen.value = 'editor'
 }
 </script>
 
@@ -109,6 +127,8 @@ function nextLevel(): void {
         v-if="screen === 'menu'"
         :settings="settings"
         @start="startGame"
+        @maps="screen = 'maps'"
+        @editor="openEditor(null)"
         @settings="screen = 'settings'"
       />
       <SettingsScreen
@@ -117,13 +137,26 @@ function nextLevel(): void {
         @back="screen = 'menu'"
       />
       <GameScreen
-        v-else
+        v-else-if="screen === 'game'"
         :settings="settings"
         :seed="seed"
         :level-index="levelIndex"
         :maze-theme="mazeTheme"
+        :map="playingMap"
         @next="nextLevel"
         @exit="screen = 'menu'"
+      />
+      <MapListScreen
+        v-else-if="screen === 'maps'"
+        @play="playMap"
+        @edit="openEditor"
+        @back="screen = 'menu'"
+      />
+      <EditorScreen
+        v-else-if="screen === 'editor'"
+        :map-id="editingMapId"
+        :maze-theme="mazeTheme"
+        @back="screen = 'menu'"
       />
     </Transition>
 

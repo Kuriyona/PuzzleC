@@ -4,6 +4,7 @@ import type { Level, ThemeId, Vec2 } from '../types'
 import { sampleTrail } from '../game/trail'
 import { PLAYER_R } from '../game/collision'
 import { addLevelWalls, wallLineWidth } from '../render/walls'
+import { drawLabels } from '../render/labels'
 import { CANVAS_PALETTES, inkRgba } from '../render/palette'
 import { useT } from '../i18n/useI18n'
 
@@ -67,6 +68,12 @@ function renderFrame(ms: number): void {
   addLevelWalls(c, level, tile)
   c.stroke()
 
+  // 文字标签：全图等亮度
+  if (level.labels.length > 0) {
+    c.fillStyle = inkRgba(pal.ink, 0.85)
+    drawLabels(c, level.labels, tile)
+  }
+
   const n = times.length
   if (n > 0) {
     // 完整轨迹（淡）
@@ -104,15 +111,17 @@ function renderFrame(ms: number): void {
   c.arc((level.start.x + 0.5) * tile, (level.start.y + 0.5) * tile, tile * 0.16, 0, Math.PI * 2)
   c.stroke()
 
-  // 终点：菱形（与游戏内标记一致）
-  c.save()
-  c.translate((level.goal.x + 0.5) * tile, (level.goal.y + 0.5) * tile)
-  c.rotate(Math.PI / 4)
-  const r = tile * 0.28
-  c.strokeStyle = inkRgba(pal.ink, 0.95)
-  c.lineWidth = Math.max(1.5, tile * 0.07)
-  c.strokeRect(-r * 0.8, -r * 0.8, r * 1.6, r * 1.6)
-  c.restore()
+  // 终点：菱形（与游戏内标记一致；多目标逐个绘制）
+  for (const goal of level.goals) {
+    c.save()
+    c.translate((goal.x + 0.5) * tile, (goal.y + 0.5) * tile)
+    c.rotate(Math.PI / 4)
+    const r = tile * 0.28
+    c.strokeStyle = inkRgba(pal.ink, 0.95)
+    c.lineWidth = Math.max(1.5, tile * 0.07)
+    c.strokeRect(-r * 0.8, -r * 0.8, r * 1.6, r * 1.6)
+    c.restore()
+  }
 
   c.restore()
 }

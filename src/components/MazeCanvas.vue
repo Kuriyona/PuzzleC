@@ -4,6 +4,7 @@ import type { Level, ThemeId, Vec2 } from '../types'
 import { computeVisibility, createVisibility, isVisible } from '../game/visibility'
 import { PLAYER_R } from '../game/collision'
 import { addLitWalls, wallGradient, wallLineWidth } from '../render/walls'
+import { drawLabels } from '../render/labels'
 import { CANVAS_PALETTES, inkRgba } from '../render/palette'
 
 const props = defineProps<{ level: Level; radius: number; animations: boolean; theme: ThemeId }>()
@@ -34,6 +35,18 @@ function measure(): void {
 function tileSize(): number {
   const span = Math.min(2 * props.radius + 1, Math.max(props.level.cols, props.level.rows))
   return side / span
+}
+
+/** 把视野扇形写入裁剪路径（调用方自行 save/restore） */
+function clipFan(c: CanvasRenderingContext2D, fan: number[], tile: number): void {
+  if (fan.length < 6) return
+  c.beginPath()
+  c.moveTo((fan[0] + 0.5) * tile, (fan[1] + 0.5) * tile)
+  for (let i = 2; i < fan.length; i += 2) {
+    c.lineTo((fan[i] + 0.5) * tile, (fan[i + 1] + 0.5) * tile)
+  }
+  c.closePath()
+  c.clip()
 }
 
 function renderFrame(now: number, dt: number, player: Vec2): void {
@@ -88,42 +101,45 @@ function renderFrame(now: number, dt: number, player: Vec2): void {
 
   // 裁剪单独 save/restore：墙体正好压在扇形边界上，共用会被削掉一半
   c.save()
-  if (fan.length >= 6) {
-    c.beginPath()
-    c.moveTo((fan[0] + 0.5) * tile, (fan[1] + 0.5) * tile)
-    for (let i = 2; i < fan.length; i += 2) {
-      c.lineTo((fan[i] + 0.5) * tile, (fan[i + 1] + 0.5) * tile)
-    }
-    c.closePath()
-    c.clip()
-  }
+  clipFan(c, fan, tile)
   c.fillStyle = grad
   c.fillRect(-tile, -tile, worldW + 2 * tile, worldH + 2 * tile)
   c.restore()
 
   // 墙体：有厚度的实体墙（圆角端 / 连接），亮度随距玩家的距离由径向渐变连续衰减
+  const wallGrad = wallGradient(c, pxw, pyw, R, pal.ink)
   c.lineCap = 'round'
   c.lineJoin = 'round'
   c.lineWidth = wallLineWidth(tile)
-  c.strokeStyle = wallGradient(c, pxw, pyw, R, pal.ink)
+  c.strokeStyle = wallGrad
   c.beginPath()
   addLitWalls(c, vis.lit, tile)
   c.stroke()
 
-  if (isVisible(level, player, level.goal, props.radius)) {
-    const dGoal = Math.hypot(level.goal.x - player.x, level.goal.y - player.y)
+  const pulse = props.animations
+    ? 0.27 + 0.03 * Math.sin((now / 1000) * ((Math.PI * 2) / 1.6))
+    : 0.28
+  for (const goal of level.goals) {
+    if (!isVisible(level, player, goal, props.radius)) continue
+    const dGoal = Math.hypot(goal.x - player.x, goal.y - player.y)
     const gl = Math.max(0, 1 - dGoal / props.radius)
     const alpha = Math.min(1, Math.max(0.3, gl * 5))
-    const pulse = props.animations
-      ? 0.27 + 0.03 * Math.sin((now / 1000) * ((Math.PI * 2) / 1.6))
-      : 0.28
     const r = tile * pulse
     c.save()
-    c.translate((level.goal.x + 0.5) * tile, (level.goal.y + 0.5) * tile)
+    c.translate((goal.x + 0.5) * tile, (goal.y + 0.5) * tile)
     c.rotate(Math.PI / 4)
     c.strokeStyle = inkRgba(pal.ink, alpha)
     c.lineWidth = Math.max(1.5, tile * 0.06)
     c.strokeRect(-r * 0.8, -r * 0.8, r * 1.6, r * 1.6)
+    c.restore()
+  }
+
+  // 文字标签：与墙体共用亮度渐变，但需重新裁剪扇形（墙体笔画压在边界上，不能共用同一次裁剪）
+  if (level.labels.length > 0) {
+    c.save()
+    clipFan(c, vis.fan, tile)
+    c.fillStyle = wallGrad
+    drawLabels(c, level.labels, tile)
     c.restore()
   }
 

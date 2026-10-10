@@ -9,6 +9,8 @@ defineProps<{
   distance: number
   elapsedMs: number
   seed: number
+  /** 游玩自定义地图时的地图名；生成迷宫时为空串 */
+  mapName: string
 }>()
 
 defineEmits<{ pause: []; restart: [] }>()
@@ -25,12 +27,15 @@ function formatTime(ms: number): string {
 <template>
   <header class="hud">
     <div class="stats">
-      <span>{{ t('game.hud.level', { level: levelIndex }) }}</span>
+      <span v-if="mapName">{{ mapName }}</span>
+      <span v-else>{{ t('game.hud.level', { level: levelIndex }) }}</span>
       <i></i><span>{{ t('game.stats.distance', { distance: distance.toFixed(1) }) }}</span>
       <i></i><span>{{ t('game.stats.time', { time: formatTime(elapsedMs) }) }}</span>
       <i></i><span>{{ t('game.hud.maze', { size: sizeHint }) }}</span>
       <i></i><span>{{ t('game.hud.radius', { radius }) }}</span>
-      <i></i><span>{{ t('game.stats.seed', { seed: seedLabel(seed) }) }}</span>
+      <template v-if="!mapName">
+        <i></i><span>{{ t('game.stats.seed', { seed: seedLabel(seed) }) }}</span>
+      </template>
     </div>
     <div class="controls">
       <button class="interactive btn" @click="$emit('pause')">{{ t('game.hud.pause') }}</button>

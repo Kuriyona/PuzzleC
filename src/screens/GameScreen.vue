@@ -3,6 +3,8 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import type { GameStatus, Level, Settings, ThemeId, Vec2 } from '../types'
 import { SIZE_OPTIONS, generateMaze } from '../game/maze'
 import { radiusValue, sizeCells } from '../game/settings'
+import type { MapFile } from '../map/format'
+import { mapToLevel, resolveLocalized } from '../map/format'
 import { PLAYER_R, moveWithCollision } from '../game/collision'
 import { seedLabel } from '../game/rng'
 import { createTrail } from '../game/trail'
@@ -18,6 +20,8 @@ const props = defineProps<{
   levelIndex: number
   /** 已解析的迷宫主题（App 把 ui 跟随解析成实际值） */
   mazeTheme: ThemeId
+  /** 游玩自定义地图时非空；否则生成随机迷宫 */
+  map: MapFile | null
 }>()
 const emit = defineEmits<{ next: []; exit: [] }>()
 
@@ -45,11 +49,24 @@ const canvasRef = ref<InstanceType<typeof MazeCanvas> | null>(null)
 
 const cells = computed(() => sizeCells(props.settings.size))
 const radius = computed(() => radiusValue(props.settings.radius))
-const sizeHint = computed(
-  () => SIZE_OPTIONS.find((o) => o.id === props.settings.size)?.hint ?? String(cells.value),
+const sizeHint = computed(() =>
+  props.map
+    ? `${props.map.meta.cols}×${props.map.meta.rows}`
+    : SIZE_OPTIONS.find((o) => o.id === props.settings.size)?.hint ?? String(cells.value),
+)
+const mapName = computed(() =>
+  props.map
+    ? resolveLocalized(props.map.meta.name, props.settings.locale) || t('maps.untitled')
+    : '',
 )
 
-const level = ref<Level>(generateMaze(cells.value, cells.value, props.seed))
+function buildLevel(): Level {
+  return props.map
+    ? mapToLevel(props.map, props.settings.locale)
+    : generateMaze(cells.value, cells.value, props.seed)
+}
+
+const level = ref<Level>(buildLevel())
 const status = ref<GameStatus>('playing')
 const startedAt = ref(performance.now())
 const pausedAccumMs = ref(0)
@@ -83,7 +100,7 @@ function elapsedNow(): number {
 }
 
 function resetLevel(): void {
-  level.value = generateMaze(cells.value, cells.value, props.seed)
+  level.value = buildLevel()
   pos.x = level.value.start.x
   pos.y = level.value.start.y
   vel.x = 0
@@ -174,7 +191,7 @@ function frame(now: number): void {
     pos.x = next.x
     pos.y = next.y
     trail.push(pos.x, pos.y, elapsedNow())
-    if (Math.hypot(pos.x - level.value.goal.x, pos.y - level.value.goal.y) < WIN_R) {
+    if (level.value.goals.some((g) => Math.hypot(pos.x - g.x, pos.y - g.y) < WIN_R)) {
       vel.x = 0
       vel.y = 0
       elapsedMs.value = elapsedNow()
@@ -206,11 +223,18 @@ const pausedActions = computed(() => [
   { label: t('game.action.menu'), onClick: () => emit('exit') },
 ])
 
-const wonActions = computed(() => [
-  { label: t('game.action.review'), active: true, primary: true, onClick: openReview },
-  { label: t('game.action.next'), onClick: () => emit('next') },
-  { label: t('game.action.menu'), onClick: () => emit('exit') },
-])
+const wonActions = computed(() => {
+  const actions: {
+    label: string
+    active?: boolean
+    primary?: boolean
+    onClick: () => void
+  }[] = [{ label: t('game.action.review'), active: true, primary: true, onClick: openReview }]
+  // 自定义地图没有“下一关”，只有生成迷宫才有
+  if (!props.map) actions.push({ label: t('game.action.next'), onClick: () => emit('next') })
+  actions.push({ label: t('game.action.menu'), onClick: () => emit('exit') })
+  return actions
+})
 
 function openReview(): void {
   reviewDuration.value = trail.times.length ? trail.times[trail.times.length - 1] : 0
@@ -254,6 +278,11 @@ const statsLines = computed(() => [
 
 watch(
   () => props.seed,
+  () => resetLevel(),
+)
+
+watch(
+  () => props.map,
   () => resetLevel(),
 )
 
@@ -349,6 +378,7 @@ onUnmounted(() => {
         :distance="traveled"
         :elapsed-ms="elapsedMs"
         :seed="seed"
+        :map-name="mapName"
         @pause="togglePause"
         @restart="resetLevel"
       />

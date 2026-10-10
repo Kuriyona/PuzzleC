@@ -1,4 +1,4 @@
-import type { Level } from '../types'
+import type { WallGrid } from '../types'
 import { inkRgba } from './palette'
 
 /**
@@ -44,7 +44,7 @@ export function wallGradient(
 }
 
 /** 把 level 的全部墙段（含外圈）写入当前路径。 */
-export function addLevelWalls(ctx: CanvasRenderingContext2D, level: Level, tile: number): void {
+export function addLevelWalls(ctx: CanvasRenderingContext2D, level: WallGrid, tile: number): void {
   const { cols, rows, vWalls, hWalls } = level
   for (let k = 0; k <= cols; k++) {
     const x = k * tile

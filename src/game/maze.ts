@@ -1,4 +1,4 @@
-import type { Cell, Level, SizeId } from '../types'
+import type { Cell, Level, SizeId, WallGrid } from '../types'
 import type { MessageKey } from '../i18n/messages'
 import { mulberry32 } from './rng'
 
@@ -14,13 +14,13 @@ export const SIZE_OPTIONS = [
 }[]
 
 /** 越界 → true（外圈即墙）。 */
-export function hasVWall(level: Level, lineX: number, row: number): boolean {
+export function hasVWall(level: WallGrid, lineX: number, row: number): boolean {
   if (lineX < 0 || lineX > level.cols || row < 0 || row >= level.rows) return true
   return level.vWalls[row * (level.cols + 1) + lineX] === 1
 }
 
 /** 越界 → true（外圈即墙）。 */
-export function hasHWall(level: Level, lineY: number, col: number): boolean {
+export function hasHWall(level: WallGrid, lineY: number, col: number): boolean {
   if (lineY < 0 || lineY > level.rows || col < 0 || col >= level.cols) return true
   return level.hWalls[lineY * level.cols + col] === 1
 }
@@ -63,8 +63,8 @@ export function generateMaze(cols: number, rows: number, seed: number): Level {
   }
 
   const start: Cell = { x: 0, y: 0 }
-  const level: Level = { seed, cols, rows, hWalls, vWalls, start, goal: { ...start } }
-  level.goal = farthestCell(level, start)
+  const level: Level = { seed, cols, rows, hWalls, vWalls, start, goals: [], labels: [] }
+  level.goals.push(farthestCell(level, start))
   return level
 }
 

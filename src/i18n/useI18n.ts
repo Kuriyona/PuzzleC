@@ -22,3 +22,10 @@ export function useT(): TranslateFn {
   if (!locale) throw new Error('useT() 必须在 App 调用了 provideLocale() 之后使用')
   return (key, params) => translate(locale.value, key, params)
 }
+
+/** 当前界面语言（只读）；与 useT 同样的 inject 校验 */
+export function useLocale(): Ref<LocaleId> {
+  const locale = inject(LOCALE_KEY)
+  if (!locale) throw new Error('useLocale() 必须在 App 调用了 provideLocale() 之后使用')
+  return locale
+}

@@ -5,7 +5,7 @@ import { radiusValue } from '../game/settings'
 import { useT } from '../i18n/useI18n'
 
 const props = defineProps<{ settings: Settings }>()
-defineEmits<{ start: []; settings: [] }>()
+defineEmits<{ start: []; settings: []; maps: []; editor: [] }>()
 
 const t = useT()
 
@@ -36,13 +36,27 @@ const sizeOption = () => SIZE_OPTIONS.find((o) => o.id === props.settings.size) 
         <button
           class="interactive item rise"
           style="animation-delay: 230ms"
+          @click="$emit('maps')"
+        >
+          {{ t('menu.maps') }}
+        </button>
+        <button
+          class="interactive item rise"
+          style="animation-delay: 300ms"
+          @click="$emit('editor')"
+        >
+          {{ t('menu.editor') }}
+        </button>
+        <button
+          class="interactive item rise"
+          style="animation-delay: 370ms"
           @click="$emit('settings')"
         >
           {{ t('menu.settings') }}
         </button>
         <a
           class="interactive item rise"
-          style="animation-delay: 300ms"
+          style="animation-delay: 440ms"
           href="https://github.com/Kuriyona/PuzzleC"
           target="_blank"
           rel="noreferrer"
@@ -51,7 +65,7 @@ const sizeOption = () => SIZE_OPTIONS.find((o) => o.id === props.settings.size) 
         </a>
       </nav>
 
-      <footer class="foot rise" style="animation-delay: 370ms">
+      <footer class="foot rise" style="animation-delay: 510ms">
         <p>{{ t('menu.controls') }}</p>
         <p>
           {{
