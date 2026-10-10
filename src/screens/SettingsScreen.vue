@@ -1,12 +1,6 @@
 <script setup lang="ts">
 import type { Settings } from '../types'
-import { SIZE_OPTIONS } from '../game/maze'
-import {
-  MAZE_THEME_OPTIONS,
-  RADIUS_OPTIONS,
-  UI_THEME_OPTIONS,
-  DEFAULT_SETTINGS,
-} from '../game/settings'
+import { MAZE_THEME_OPTIONS, UI_THEME_OPTIONS, DEFAULT_SETTINGS } from '../game/settings'
 import { LOCALE_OPTIONS } from '../i18n/messages'
 import { useT } from '../i18n/useI18n'
 
@@ -73,36 +67,6 @@ function restoreDefaults(): void {
             @click="apply({ mazeTheme: opt.id })"
           >
             {{ t(opt.labelKey) }}
-          </button>
-        </div>
-      </div>
-
-      <div class="row">
-        <span class="label">{{ t('settings.size') }}</span>
-        <div class="seg">
-          <button
-            v-for="opt in SIZE_OPTIONS"
-            :key="opt.id"
-            class="interactive seg-btn"
-            :class="{ 'is-active': model.size === opt.id }"
-            @click="apply({ size: opt.id })"
-          >
-            {{ t(opt.labelKey) }} · {{ opt.hint }}
-          </button>
-        </div>
-      </div>
-
-      <div class="row">
-        <span class="label">{{ t('settings.radius') }}</span>
-        <div class="seg">
-          <button
-            v-for="opt in RADIUS_OPTIONS"
-            :key="opt.id"
-            class="interactive seg-btn"
-            :class="{ 'is-active': model.radius === opt.id }"
-            @click="apply({ radius: opt.id })"
-          >
-            {{ t(opt.labelKey) }} · {{ opt.value }}
           </button>
         </div>
       </div>

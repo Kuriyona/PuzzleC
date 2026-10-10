@@ -1,4 +1,4 @@
-export type Screen = 'menu' | 'settings' | 'game' | 'editor' | 'maps'
+export type Screen = 'menu' | 'start' | 'settings' | 'game' | 'editor' | 'maps'
 export type SizeId = 'small' | 'medium' | 'large'
 export type RadiusId = 'narrow' | 'normal' | 'wide'
 /** 界面主题：system = 跟随系统配色 */
@@ -11,12 +11,24 @@ export type ThemeId = 'light' | 'dark'
 export type LocaleId = 'zh-Hans' | 'zh-Hant' | 'en' | 'ja'
 
 export interface Settings {
-  size: SizeId
-  radius: RadiusId
   animations: boolean
   uiTheme: UiThemeId
   mazeTheme: MazeThemeId
   locale: LocaleId
+}
+
+/** 随机迷宫的生成参数：在「开始游戏」界面按局配置，不属于全局设置 */
+export interface GenParams {
+  /** 尺寸预设；'custom' 时用 sizeCustom */
+  sizePreset: SizeId | 'custom'
+  /** 自定义边长（格），仅 sizePreset === 'custom' 时生效 */
+  sizeCustom: number
+  /** 视野半径预设；'custom' 时用 radiusCustom */
+  radiusPreset: RadiusId | 'custom'
+  /** 自定义视野半径（格），仅 radiusPreset === 'custom' 时生效 */
+  radiusCustom: number
+  /** 种子文本；空串 = 每次随机 */
+  seed: string
 }
 
 /** 格索引（0..cols-1 / 0..rows-1）；格中心连续坐标 = (x,y) */

@@ -1,7 +1,6 @@
-import type { MazeThemeId, RadiusId, Settings, SizeId, UiThemeId } from '../types'
+import type { MazeThemeId, Settings, UiThemeId } from '../types'
 import type { MessageKey } from '../i18n/messages'
 import { DEFAULT_LOCALE, isLocaleId } from '../i18n/messages'
-import { SIZE_OPTIONS } from './maze'
 
 export const UI_THEME_OPTIONS = [
   { id: 'light', labelKey: 'opt.uiTheme.light' },
@@ -14,12 +13,6 @@ export const MAZE_THEME_OPTIONS = [
   { id: 'light', labelKey: 'opt.mazeTheme.light' },
   { id: 'ui', labelKey: 'opt.mazeTheme.ui' },
 ] as const satisfies readonly { id: MazeThemeId; labelKey: MessageKey }[]
-
-export const RADIUS_OPTIONS = [
-  { id: 'narrow', labelKey: 'opt.radius.narrow', value: 2 },
-  { id: 'normal', labelKey: 'opt.radius.normal', value: 3 },
-  { id: 'wide', labelKey: 'opt.radius.wide', value: 4 },
-] as const satisfies readonly { id: RadiusId; labelKey: MessageKey; value: number }[]
 
 export const SETTINGS_KEY = 'puzzlec.settings.v1'
 /** 首次进入游戏的主题引导是否已看过：与设置分开存，免得“恢复默认”把它重置回未看过 */
@@ -48,20 +41,10 @@ export function subscribeSystemScheme(onChange: (dark: boolean) => void): () => 
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  size: 'medium',
-  radius: 'normal',
   animations: !mediaMatches('(prefers-reduced-motion: reduce)'),
   uiTheme: 'light',
   mazeTheme: 'ui',
   locale: DEFAULT_LOCALE,
-}
-
-export function sizeCells(id: SizeId): number {
-  return (SIZE_OPTIONS.find((o) => o.id === id) ?? SIZE_OPTIONS[1]).cells
-}
-
-export function radiusValue(id: RadiusId): number {
-  return (RADIUS_OPTIONS.find((o) => o.id === id) ?? RADIUS_OPTIONS[1]).value
 }
 
 export function loadSettings(): Settings {
@@ -75,12 +58,6 @@ export function loadSettings(): Settings {
   if (typeof raw !== 'object' || raw === null) return { ...DEFAULT_SETTINGS }
 
   const parsed = raw as Partial<Record<keyof Settings, unknown>>
-  const size = SIZE_OPTIONS.some((o) => o.id === parsed.size)
-    ? (parsed.size as SizeId)
-    : DEFAULT_SETTINGS.size
-  const radius = RADIUS_OPTIONS.some((o) => o.id === parsed.radius)
-    ? (parsed.radius as RadiusId)
-    : DEFAULT_SETTINGS.radius
   const animations =
     typeof parsed.animations === 'boolean' ? parsed.animations : DEFAULT_SETTINGS.animations
   const uiTheme = UI_THEME_OPTIONS.some((o) => o.id === parsed.uiTheme)
@@ -90,7 +67,8 @@ export function loadSettings(): Settings {
     ? (parsed.mazeTheme as MazeThemeId)
     : DEFAULT_SETTINGS.mazeTheme
   const locale = isLocaleId(parsed.locale) ? parsed.locale : DEFAULT_SETTINGS.locale
-  return { size, radius, animations, uiTheme, mazeTheme, locale }
+  // 旧版本存过的 size / radius 是多余字段，这里直接忽略（它们已改为按局配置）
+  return { animations, uiTheme, mazeTheme, locale }
 }
 
 export function saveSettings(s: Settings): void {

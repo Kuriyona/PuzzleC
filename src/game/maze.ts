@@ -1,17 +1,5 @@
-import type { Cell, Level, SizeId, WallGrid } from '../types'
-import type { MessageKey } from '../i18n/messages'
+import type { Cell, Level, WallGrid } from '../types'
 import { mulberry32 } from './rng'
-
-export const SIZE_OPTIONS = [
-  { id: 'small', labelKey: 'opt.size.small', cells: 6, hint: '6×6' },
-  { id: 'medium', labelKey: 'opt.size.medium', cells: 10, hint: '10×10' },
-  { id: 'large', labelKey: 'opt.size.large', cells: 15, hint: '15×15' },
-] as const satisfies readonly {
-  id: SizeId
-  labelKey: MessageKey
-  cells: number
-  hint: string
-}[]
 
 /** 越界 → true（外圈即墙）。 */
 export function hasVWall(level: WallGrid, lineX: number, row: number): boolean {

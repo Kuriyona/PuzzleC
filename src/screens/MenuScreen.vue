@@ -1,15 +1,11 @@
 <script setup lang="ts">
 import type { Settings } from '../types'
-import { SIZE_OPTIONS } from '../game/maze'
-import { radiusValue } from '../game/settings'
 import { useT } from '../i18n/useI18n'
 
-const props = defineProps<{ settings: Settings }>()
+defineProps<{ settings: Settings }>()
 defineEmits<{ start: []; settings: []; maps: []; editor: [] }>()
 
 const t = useT()
-
-const sizeOption = () => SIZE_OPTIONS.find((o) => o.id === props.settings.size) ?? SIZE_OPTIONS[1]
 </script>
 
 <template>
@@ -67,15 +63,7 @@ const sizeOption = () => SIZE_OPTIONS.find((o) => o.id === props.settings.size) 
       </nav>
 
       <footer class="foot rise" style="animation-delay: 510ms">
-        <p>
-          {{
-            t('menu.stats', {
-              size: sizeOption().hint,
-              radius: radiusValue(settings.radius),
-              anim: settings.animations ? t('common.on') : t('common.off'),
-            })
-          }}
-        </p>
+        <p>{{ t('menu.anim', { anim: settings.animations ? t('common.on') : t('common.off') }) }}</p>
       </footer>
     </div>
   </section>

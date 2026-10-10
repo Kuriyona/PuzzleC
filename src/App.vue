@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref, watch } from 'vue'
-import type { LocaleId, Screen, Settings, ThemeId } from './types'
+import type { GenParams, LocaleId, Screen, Settings, ThemeId } from './types'
 import {
   loadIntroSeen,
   loadSettings,
@@ -9,11 +9,13 @@ import {
   saveSettings,
   subscribeSystemScheme,
 } from './game/settings'
+import { DEFAULT_GEN_PARAMS, mazeSizeOf, parseSeed, radiusOf } from './game/gen'
 import { LOCALE_TAGS } from './i18n/messages'
 import { provideLocale } from './i18n/useI18n'
 import { randomSeed } from './game/rng'
 import IntroScreen from './screens/IntroScreen.vue'
 import MenuScreen from './screens/MenuScreen.vue'
+import StartScreen from './screens/StartScreen.vue'
 import SettingsScreen from './screens/SettingsScreen.vue'
 import GameScreen from './screens/GameScreen.vue'
 import MapListScreen from './screens/MapListScreen.vue'
@@ -22,6 +24,10 @@ import type { MapFile } from './map/format'
 
 const screen = ref<Screen>('menu')
 const settings = ref<Settings>(loadSettings())
+/** 「开始游戏」界面按局配置的生成参数（不持久化，也不属于全局设置） */
+const gen = ref<GenParams>({ ...DEFAULT_GEN_PARAMS })
+/** 本局实际使用的生成参数：随机迷宫用 size，自定义地图只用 radius */
+const run = ref({ size: mazeSizeOf(DEFAULT_GEN_PARAMS), radius: radiusOf(DEFAULT_GEN_PARAMS) })
 const seed = ref<number>(randomSeed())
 const levelIndex = ref<number>(1)
 /** 正在游玩的自定义地图；null = 生成迷宫 */
@@ -66,8 +72,10 @@ function finishIntro(): void {
   // 引导只负责设置与介绍：走完停在主界面（screen 本就是 'menu'），由玩家自己按开始游戏
 }
 
-function beginGame(): void {
-  seed.value = randomSeed()
+/** 「开始游戏」界面按当前配置开局：尺寸/半径取解析值，种子留空则随机 */
+function startRandom(): void {
+  run.value = { size: mazeSizeOf(gen.value), radius: radiusOf(gen.value) }
+  seed.value = parseSeed(gen.value.seed) ?? randomSeed()
   levelIndex.value = 1
   playingMap.value = null
   screen.value = 'game'
@@ -104,10 +112,16 @@ function openEditor(id: string | null): void {
       <MenuScreen
         v-else-if="screen === 'menu'"
         :settings="settings"
-        @start="beginGame"
+        @start="screen = 'start'"
         @maps="screen = 'maps'"
         @editor="openEditor(null)"
         @settings="screen = 'settings'"
+      />
+      <StartScreen
+        v-else-if="screen === 'start'"
+        v-model="gen"
+        @start="startRandom"
+        @back="screen = 'menu'"
       />
       <SettingsScreen
         v-else-if="screen === 'settings'"
@@ -119,6 +133,8 @@ function openEditor(id: string | null): void {
         :settings="settings"
         :seed="seed"
         :level-index="levelIndex"
+        :maze-size="run.size"
+        :radius="run.radius"
         :maze-theme="mazeTheme"
         :map="playingMap"
         @next="nextLevel"

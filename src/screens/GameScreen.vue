@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import type { GameStatus, Level, Settings, ThemeId, Vec2 } from '../types'
-import { SIZE_OPTIONS, generateMaze } from '../game/maze'
-import { radiusValue, sizeCells } from '../game/settings'
+import { generateMaze } from '../game/maze'
 import type { MapFile } from '../map/format'
 import { mapToLevel, resolveLocalized } from '../map/format'
 import { PLAYER_R, moveWithCollision } from '../game/collision'
@@ -18,6 +17,10 @@ const props = defineProps<{
   settings: Settings
   seed: number
   levelIndex: number
+  /** 生成迷宫的边长（格）；游玩自定义地图时尺寸由地图自身决定 */
+  mazeSize: number
+  /** 视野半径（格） */
+  radius: number
   /** 已解析的迷宫主题（App 把 ui 跟随解析成实际值） */
   mazeTheme: ThemeId
   /** 游玩自定义地图时非空；否则生成随机迷宫 */
@@ -47,12 +50,10 @@ const MOVE_KEYS = new Set([
 
 const canvasRef = ref<InstanceType<typeof MazeCanvas> | null>(null)
 
-const cells = computed(() => sizeCells(props.settings.size))
-const radius = computed(() => radiusValue(props.settings.radius))
 const sizeHint = computed(() =>
   props.map
     ? `${props.map.meta.cols}×${props.map.meta.rows}`
-    : SIZE_OPTIONS.find((o) => o.id === props.settings.size)?.hint ?? String(cells.value),
+    : `${props.mazeSize}×${props.mazeSize}`,
 )
 const mapName = computed(() =>
   props.map
@@ -63,7 +64,7 @@ const mapName = computed(() =>
 function buildLevel(): Level {
   return props.map
     ? mapToLevel(props.map, props.settings.locale)
-    : generateMaze(cells.value, cells.value, props.seed)
+    : generateMaze(props.mazeSize, props.mazeSize, props.seed)
 }
 
 const level = ref<Level>(buildLevel())
@@ -272,7 +273,7 @@ function onReviewSeek(e: Event): void {
 const statsLines = computed(() => [
   t('game.stats.time', { time: formatTime(elapsedMs.value) }),
   t('game.stats.distance', { distance: traveled.value.toFixed(1) }),
-  t('game.stats.maze', { size: sizeHint.value, radius: radius.value }),
+  t('game.stats.maze', { size: sizeHint.value, radius: props.radius }),
   t('game.stats.seed', { seed: seedLabel(props.seed) }),
 ])
 

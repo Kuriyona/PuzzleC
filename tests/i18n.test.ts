@@ -8,8 +8,8 @@ import {
   isLocaleId,
   translate,
 } from '../src/i18n/messages'
-import { MAZE_THEME_OPTIONS, RADIUS_OPTIONS, UI_THEME_OPTIONS } from '../src/game/settings'
-import { SIZE_OPTIONS } from '../src/game/maze'
+import { MAZE_THEME_OPTIONS, UI_THEME_OPTIONS } from '../src/game/settings'
+import { RADIUS_OPTIONS, SIZE_OPTIONS } from '../src/game/gen'
 import { TEXT_ALIGN_OPTIONS, TEXT_SIZE_OPTIONS } from '../src/map/format'
 
 const total = 4
