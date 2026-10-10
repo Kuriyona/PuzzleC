@@ -61,7 +61,7 @@ export function addLevelWalls(ctx: CanvasRenderingContext2D, level: Level, tile:
   }
 }
 
-/** 把可见墙段（visibility.lit，每 4 个连续坐标一条）写入当前路径。 */
+/** 把可见墙段（visibility.lit = 每条边的可见部分，每 4 个连续坐标一条）写入当前路径。 */
 export function addLitWalls(ctx: CanvasRenderingContext2D, lit: number[], tile: number): void {
   for (let i = 0; i < lit.length; i += 4) {
     ctx.moveTo((lit[i] + 0.5) * tile, (lit[i + 1] + 0.5) * tile)

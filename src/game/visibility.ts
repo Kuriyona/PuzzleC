@@ -42,7 +42,7 @@ export function castRay(level: Level, from: Vec2, dx: number, dy: number, maxT: 
 export interface Visibility {
   /** 扇形多边形顶点，交替 x,y（连续坐标，格单位） */
   fan: number[]
-  /** 可见墙段，每 4 个数一条 (x0,y0,x1,y1)（连续坐标） */
+  /** 可见墙段的**可见部分**，每 4 个数一条 (x0,y0,x1,y1)（连续坐标）；整条可见时即整条 */
   lit: number[]
   /** 内部复用缓冲：待投射角度 */
   angles: number[]
@@ -54,6 +54,95 @@ export function createVisibility(): Visibility {
 
 /** 基础采样角度数：只在没有任何墙段的方向才会用到半径边缘。 */
 const BASE_ANGLES = 24
+
+/** 墙段可见性采样数（含两端）：用于把一整条边按可见部分切分 */
+const SPAN_SAMPLES = 16
+/** 可见 / 遮挡边界二分细化次数 */
+const SPAN_REFINE = 8
+/** 可见碎片短于该长度（格，墙段长 1 格）就不输出：多为一整条边只剩角点可见，圆头笔画会画成斑点 */
+const SPAN_MIN_CELLS = 1 / 64
+
+/** 复用缓冲：一条墙段各采样点的可见性（0/1） */
+const spanLit = new Uint8Array(SPAN_SAMPLES + 1)
+
+/** 墙段上的点是否在视野内、且未被别的墙挡住（点自身所在的墙不算遮挡） */
+function pointLit(level: Level, pos: Vec2, radius: number, px: number, py: number): boolean {
+  const dx = px - pos.x
+  const dy = py - pos.y
+  const d = Math.hypot(dx, dy)
+  if (d > radius) return false
+  if (d <= 1e-6) return true
+  return castRay(level, pos, dx / d, dy / d, d + 1e-6) >= d - 1e-6
+}
+
+/** 二分细化可见 / 遮挡边界：hidden 侧被挡、visible 侧可见，返回可见侧边界（t 沿墙段归一化） */
+function refineSpanBoundary(
+  level: Level,
+  pos: Vec2,
+  radius: number,
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+  tHidden: number,
+  tVisible: number,
+): number {
+  let hidden = tHidden
+  let visible = tVisible
+  for (let i = 0; i < SPAN_REFINE; i++) {
+    const mid = (hidden + visible) / 2
+    if (pointLit(level, pos, radius, ax + (bx - ax) * mid, ay + (by - ay) * mid)) visible = mid
+    else hidden = mid
+  }
+  return visible
+}
+
+/**
+ * 把墙段 (ax,ay)-(bx,by) 的可见部分写入 lit。
+ * 整条可见 → 原样写入整条；只可见一部分 → 写入细化的可见子区间（沿墙段升序）。
+ */
+function pushVisibleSpans(
+  level: Level,
+  pos: Vec2,
+  radius: number,
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+  out: number[],
+): void {
+  let all = true
+  let any = false
+  for (let j = 0; j <= SPAN_SAMPLES; j++) {
+    const t = j / SPAN_SAMPLES
+    const v = pointLit(level, pos, radius, ax + (bx - ax) * t, ay + (by - ay) * t)
+    spanLit[j] = v ? 1 : 0
+    if (v) any = true
+    else all = false
+  }
+  if (!any) return
+  if (all) {
+    out.push(ax, ay, bx, by)
+    return
+  }
+  for (let j = 0; j <= SPAN_SAMPLES; j++) {
+    if (spanLit[j] === 0) continue
+    let k = j
+    while (k < SPAN_SAMPLES && spanLit[k + 1] === 1) k++
+    const t0 =
+      j === 0
+        ? 0
+        : refineSpanBoundary(level, pos, radius, ax, ay, bx, by, (j - 1) / SPAN_SAMPLES, j / SPAN_SAMPLES)
+    const t1 =
+      k === SPAN_SAMPLES
+        ? 1
+        : refineSpanBoundary(level, pos, radius, ax, ay, bx, by, (k + 1) / SPAN_SAMPLES, k / SPAN_SAMPLES)
+    if (t1 - t0 >= SPAN_MIN_CELLS) {
+      out.push(ax + (bx - ax) * t0, ay + (by - ay) * t0, ax + (bx - ax) * t1, ay + (by - ay) * t1)
+    }
+    j = k
+  }
+}
 
 export function computeVisibility(level: Level, pos: Vec2, radius: number, out: Visibility): void {
   const { cols, rows } = level
@@ -120,7 +209,9 @@ export function computeVisibility(level: Level, pos: Vec2, radius: number, out: 
     fan.push(pos.x + ca * t, pos.y + sa * t)
   }
 
-  // 4. 可见墙段（顺序固定：先垂直段 k 升序 / y 升序，再水平段 k 升序 / x 升序）
+  // 4. 可见墙段：按**可见部分**切分——整条没被挡住则整条写入，
+  //    只露出一部分 / 只被挡住一部分时写入对应的子区间。
+  //    顺序固定：先垂直段 k 升序 / y 升序（子区间沿 y 升序），再水平段 k 升序 / x 升序。
   for (let k = kLoV; k <= kHiV; k++) {
     const lineX = k - 0.5
     for (let y = yLoV; y <= yHiV; y++) {
@@ -128,13 +219,8 @@ export function computeVisibility(level: Level, pos: Vec2, radius: number, out: 
       const cy = Math.min(Math.max(pos.y, y - 0.5), y + 0.5)
       const dx = lineX - pos.x
       const dy = cy - pos.y
-      const d = Math.hypot(dx, dy)
-      if (d > radius) continue
-      if (d > 1e-6) {
-        const t = castRay(level, pos, dx / d, dy / d, d + 1e-6)
-        if (t < d - 1e-6) continue
-      }
-      lit.push(lineX, y - 0.5, lineX, y + 0.5)
+      if (dx * dx + dy * dy > r2) continue
+      pushVisibleSpans(level, pos, radius, lineX, y - 0.5, lineX, y + 0.5, lit)
     }
   }
   for (let k = kLoH; k <= kHiH; k++) {
@@ -144,13 +230,8 @@ export function computeVisibility(level: Level, pos: Vec2, radius: number, out: 
       const cx = Math.min(Math.max(pos.x, x - 0.5), x + 0.5)
       const dx = cx - pos.x
       const dy = lineY - pos.y
-      const d = Math.hypot(dx, dy)
-      if (d > radius) continue
-      if (d > 1e-6) {
-        const t = castRay(level, pos, dx / d, dy / d, d + 1e-6)
-        if (t < d - 1e-6) continue
-      }
-      lit.push(x - 0.5, lineY, x + 0.5, lineY)
+      if (dx * dx + dy * dy > r2) continue
+      pushVisibleSpans(level, pos, radius, x - 0.5, lineY, x + 0.5, lineY, lit)
     }
   }
 }
