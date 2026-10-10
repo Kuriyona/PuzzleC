@@ -54,6 +54,17 @@ const vel: Vec2 = { x: 0, y: 0 }
 const next: Vec2 = { x: 0, y: 0 }
 const trail = createTrail()
 
+// 回放状态：reviewPlayMs 为每帧推进的普通值，仅时间显示用 ref（避免逐帧响应式数据）
+let reviewPlayMs = 0
+let scrubbing = false
+const reviewMs = ref(0)
+const reviewDuration = ref(0)
+const reviewPlaying = ref(true)
+const reviewSpeed = ref(1)
+const reviewCanvasRef = ref<InstanceType<typeof ReviewMap> | null>(null)
+const SPEEDS = [0.5, 1, 2, 4] as const
+const seekMax = computed(() => Math.max(1, reviewDuration.value))
+
 let rafId = 0
 let tickId = 0
 let last = 0
@@ -68,7 +79,7 @@ function resetLevel(): void {
   pos.y = level.value.start.y
   vel.x = 0
   vel.y = 0
-  trail.reset(pos.x, pos.y)
+  trail.reset(pos.x, pos.y, 0)
   traveled.value = 0
   status.value = 'playing'
   startedAt.value = performance.now()
@@ -153,7 +164,7 @@ function frame(now: number): void {
     traveled.value += Math.hypot(next.x - pos.x, next.y - pos.y)
     pos.x = next.x
     pos.y = next.y
-    trail.push(pos.x, pos.y)
+    trail.push(pos.x, pos.y, elapsedNow())
     if (Math.hypot(pos.x - level.value.goal.x, pos.y - level.value.goal.y) < WIN_R) {
       vel.x = 0
       vel.y = 0
@@ -162,7 +173,16 @@ function frame(now: number): void {
     }
   }
 
-  if (status.value !== 'paused') canvasRef.value?.renderFrame(now, dt, pos)
+  if (status.value === 'review') {
+    if (!scrubbing && reviewPlaying.value && reviewDuration.value > 0) {
+      reviewPlayMs = Math.min(reviewDuration.value, reviewPlayMs + dt * reviewSpeed.value)
+      if (reviewPlayMs >= reviewDuration.value) reviewPlaying.value = false
+    }
+    reviewMs.value = reviewPlayMs
+    reviewCanvasRef.value?.renderFrame(reviewPlayMs)
+  } else if (status.value !== 'paused') {
+    canvasRef.value?.renderFrame(now, dt, pos)
+  }
 }
 
 function formatTime(ms: number): string {
@@ -178,10 +198,43 @@ const pausedActions = computed(() => [
 ])
 
 const wonActions = computed(() => [
-  { label: '查看回顾', primary: true, onClick: () => (status.value = 'review') },
+  { label: '查看回顾', primary: true, onClick: openReview },
   { label: '下一关', onClick: () => emit('next') },
   { label: '返回菜单', onClick: () => emit('exit') },
 ])
+
+function openReview(): void {
+  reviewDuration.value = trail.times.length ? trail.times[trail.times.length - 1] : 0
+  reviewPlayMs = 0
+  reviewMs.value = 0
+  reviewPlaying.value = true
+  reviewSpeed.value = 1
+  scrubbing = false
+  status.value = 'review'
+}
+
+function toggleReviewPlay(): void {
+  if (reviewPlaying.value) {
+    reviewPlaying.value = false
+    return
+  }
+  if (reviewPlayMs >= reviewDuration.value) reviewPlayMs = 0
+  reviewPlaying.value = true
+}
+
+function onScrubStart(): void {
+  scrubbing = true
+}
+
+function onScrubEnd(): void {
+  scrubbing = false
+}
+
+function onReviewSeek(e: Event): void {
+  const v = Number((e.target as HTMLInputElement).value)
+  reviewPlayMs = v
+  reviewMs.value = v
+}
 
 const statsLines = computed(() => [
   `用时 ${formatTime(elapsedMs.value)}`,
@@ -228,8 +281,45 @@ onUnmounted(() => {
           <li v-for="(line, i) in statsLines" :key="i">{{ line }}</li>
         </ul>
       </header>
-      <ReviewMap class="rise" style="animation-delay: 140ms" :level="level" :path="trail.points" />
-      <nav class="review-actions rise" style="animation-delay: 200ms">
+      <ReviewMap
+        ref="reviewCanvasRef"
+        class="rise"
+        style="animation-delay: 140ms"
+        :level="level"
+        :points="trail.points"
+        :times="trail.times"
+      />
+      <div class="playback rise" style="animation-delay: 200ms">
+        <button class="interactive act" @click="toggleReviewPlay">
+          {{ reviewPlaying ? '暂停' : '播放' }}
+        </button>
+        <input
+          class="seek"
+          type="range"
+          min="0"
+          :max="seekMax"
+          step="1"
+          :value="reviewMs"
+          aria-label="播放进度"
+          @pointerdown="onScrubStart"
+          @pointerup="onScrubEnd"
+          @pointercancel="onScrubEnd"
+          @input="onReviewSeek"
+        />
+        <span class="clock">{{ formatTime(reviewMs) }} / {{ formatTime(reviewDuration) }}</span>
+        <div class="speeds">
+          <button
+            v-for="s in SPEEDS"
+            :key="s"
+            class="interactive chip"
+            :class="{ 'is-active': reviewSpeed === s }"
+            @click="reviewSpeed = s"
+          >
+            {{ s }}×
+          </button>
+        </div>
+      </div>
+      <nav class="review-actions rise" style="animation-delay: 240ms">
         <button class="interactive act is-active" @click="emit('next')">下一关</button>
         <button class="interactive act" @click="resetLevel">重玩本关</button>
         <button class="interactive act" @click="emit('exit')">返回菜单</button>
@@ -313,6 +403,40 @@ onUnmounted(() => {
 .review-actions {
   display: flex;
   gap: 8px;
+}
+
+.playback {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: min(92vw, 58vh, 820px);
+}
+
+.seek {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--fg);
+  cursor: pointer;
+}
+
+.clock {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: var(--fg-dim);
+  white-space: nowrap;
+}
+
+.speeds {
+  display: flex;
+  gap: 4px;
+}
+
+.chip {
+  padding: 6px 9px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
 }
 
 .act {

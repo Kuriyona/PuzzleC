@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, watch } from 'vue'
-import type { Level } from '../types'
+import type { Level, Vec2 } from '../types'
+import { sampleTrail } from '../game/trail'
+import { PLAYER_R } from '../game/collision'
 
-const props = defineProps<{ level: Level; path: number[] }>()
+const props = defineProps<{ level: Level; points: number[]; times: number[] }>()
 
 const canvasRef = ref<HTMLCanvasElement | null>(null)
 
@@ -10,6 +12,7 @@ let ctx: CanvasRenderingContext2D | null = null
 let side = 0
 let dpr = 1
 let observer: ResizeObserver | null = null
+const dot: Vec2 = { x: 0, y: 0 }
 
 function measure(): void {
   const cvs = canvasRef.value
@@ -21,12 +24,15 @@ function measure(): void {
   cvs.height = Math.round(side * dpr)
 }
 
-/** 全图绘制：无遮挡、无衰减，所有墙段等亮度；叠加轨迹与起终点。 */
-function draw(): void {
+/**
+ * 全图绘制：无遮挡、无衰减，所有墙段等亮度。
+ * 完整轨迹画淡色，按 ms 已走过的部分画亮色，并在插值位置画光点。
+ */
+function renderFrame(ms: number): void {
   const cvs = canvasRef.value
   const c = ctx
   if (!cvs || !c || side <= 0) return
-  const { level, path } = props
+  const { level, points, times } = props
 
   c.setTransform(dpr, 0, 0, dpr, 0, 0)
   c.fillStyle = '#000'
@@ -65,16 +71,34 @@ function draw(): void {
   }
   c.stroke()
 
-  // 轨迹折线
-  if (path.length >= 4) {
-    c.strokeStyle = 'rgba(255,255,255,0.9)'
-    c.lineWidth = Math.max(1.5, tile * 0.11)
+  const n = times.length
+  if (n > 0) {
+    // 完整轨迹（淡）
+    c.strokeStyle = 'rgba(255,255,255,0.16)'
+    c.lineWidth = Math.max(1.5, tile * 0.1)
     c.beginPath()
-    c.moveTo((path[0] + 0.5) * tile, (path[1] + 0.5) * tile)
-    for (let i = 2; i < path.length; i += 2) {
-      c.lineTo((path[i] + 0.5) * tile, (path[i + 1] + 0.5) * tile)
+    c.moveTo((points[0] + 0.5) * tile, (points[1] + 0.5) * tile)
+    for (let i = 1; i < n; i++) {
+      c.lineTo((points[2 * i] + 0.5) * tile, (points[2 * i + 1] + 0.5) * tile)
     }
     c.stroke()
+
+    // 已走过的部分（亮）+ 末端插值点
+    const idx = sampleTrail(points, times, ms, dot)
+    c.strokeStyle = 'rgba(255,255,255,0.9)'
+    c.beginPath()
+    c.moveTo((points[0] + 0.5) * tile, (points[1] + 0.5) * tile)
+    for (let i = 1; i <= idx; i++) {
+      c.lineTo((points[2 * i] + 0.5) * tile, (points[2 * i + 1] + 0.5) * tile)
+    }
+    if (idx < n - 1) c.lineTo((dot.x + 0.5) * tile, (dot.y + 0.5) * tile)
+    c.stroke()
+
+    // 光点
+    c.fillStyle = '#fff'
+    c.beginPath()
+    c.arc((dot.x + 0.5) * tile, (dot.y + 0.5) * tile, tile * PLAYER_R, 0, Math.PI * 2)
+    c.fill()
   }
 
   // 起点：空心小圆
@@ -97,9 +121,11 @@ function draw(): void {
   c.restore()
 }
 
+defineExpose({ renderFrame })
+
 watch(
   () => props.level,
-  () => draw(),
+  () => renderFrame(0),
   { immediate: true },
 )
 
@@ -107,11 +133,11 @@ onMounted(() => {
   const cvs = canvasRef.value
   if (cvs) ctx = cvs.getContext('2d')
   measure()
-  draw()
+  renderFrame(0)
   if (cvs && typeof ResizeObserver !== 'undefined') {
     observer = new ResizeObserver(() => {
       measure()
-      draw()
+      renderFrame(props.times.length ? props.times[props.times.length - 1] : 0)
     })
     observer.observe(cvs)
   }
@@ -124,14 +150,14 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <canvas ref="canvasRef" class="overview" aria-label="迷宫全图与轨迹"></canvas>
+  <canvas ref="canvasRef" class="overview" aria-label="迷宫全图与轨迹回放"></canvas>
 </template>
 
 <style scoped>
 .overview {
   display: block;
-  width: min(92vw, 62vh, 820px);
-  height: min(92vw, 62vh, 820px);
+  width: min(92vw, 58vh, 820px);
+  height: min(92vw, 58vh, 820px);
   background: #000;
   border: 1px solid var(--line);
 }
