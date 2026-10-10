@@ -70,6 +70,11 @@ function renderFrame(now: number, dt: number, player: Vec2): void {
   // 视野：从玩家精确位置对墙线段做几何遮挡
   computeVisibility(level, player, props.radius, vis)
   const R = props.radius * tile
+  const fan = vis.fan
+  c.save()
+  c.translate(ox, oy)
+
+  // 视野 / 墙体 / 目标 / 光点统一在世界坐标系绘制（单次相机偏移，避免漏加导致漂移）
   const grad = c.createRadialGradient(pxw, pyw, 0, pxw, pyw, R)
   grad.addColorStop(0, 'rgba(255,255,255,0.42)')
   grad.addColorStop(0.25, 'rgba(255,255,255,0.27)')
@@ -77,9 +82,8 @@ function renderFrame(now: number, dt: number, player: Vec2): void {
   grad.addColorStop(0.75, 'rgba(255,255,255,0.05)')
   grad.addColorStop(1, 'rgba(255,255,255,0)')
 
-  const fan = vis.fan
+  // 裁剪单独 save/restore：墙体正好压在扇形边界上，共用会被削掉一半
   c.save()
-  c.translate(ox, oy)
   if (fan.length >= 6) {
     c.beginPath()
     c.moveTo((fan[0] + 0.5) * tile, (fan[1] + 0.5) * tile)
@@ -94,8 +98,6 @@ function renderFrame(now: number, dt: number, player: Vec2): void {
   c.restore()
 
   // 墙体：有厚度的实体墙（圆角端 / 连接），亮度随距玩家的距离由径向渐变连续衰减
-  c.save()
-  c.translate(ox, oy)
   c.lineCap = 'round'
   c.lineJoin = 'round'
   c.lineWidth = wallLineWidth(tile)
@@ -103,7 +105,7 @@ function renderFrame(now: number, dt: number, player: Vec2): void {
   c.beginPath()
   addLitWalls(c, vis.lit, tile)
   c.stroke()
-  c.restore()
+
   if (isVisible(level, player, level.goal, props.radius)) {
     const dGoal = Math.hypot(level.goal.x - player.x, level.goal.y - player.y)
     const gl = Math.max(0, 1 - dGoal / props.radius)
@@ -130,7 +132,7 @@ function renderFrame(now: number, dt: number, player: Vec2): void {
   c.arc(pxw, pyw, rr, 0, Math.PI * 2)
   c.fill()
 
-  c.restore()
+  c.restore() // 关闭世界坐标系
 }
 
 defineExpose({ renderFrame })
