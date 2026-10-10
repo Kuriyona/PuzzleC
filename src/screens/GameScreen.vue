@@ -5,9 +5,11 @@ import { SIZE_OPTIONS, generateMaze } from '../game/maze'
 import { radiusValue, sizeCells } from '../game/settings'
 import { PLAYER_R, moveWithCollision } from '../game/collision'
 import { seedLabel } from '../game/rng'
+import { createTrail } from '../game/trail'
 import MazeCanvas from '../components/MazeCanvas.vue'
 import HudBar from '../components/HudBar.vue'
 import OverlayPanel from '../components/OverlayPanel.vue'
+import ReviewMap from '../components/ReviewMap.vue'
 
 const props = defineProps<{ settings: Settings; seed: number; levelIndex: number }>()
 const emit = defineEmits<{ next: []; exit: [] }>()
@@ -50,6 +52,7 @@ const pressed = new Set<string>()
 const pos: Vec2 = { x: 0, y: 0 }
 const vel: Vec2 = { x: 0, y: 0 }
 const next: Vec2 = { x: 0, y: 0 }
+const trail = createTrail()
 
 let rafId = 0
 let tickId = 0
@@ -65,6 +68,7 @@ function resetLevel(): void {
   pos.y = level.value.start.y
   vel.x = 0
   vel.y = 0
+  trail.reset(pos.x, pos.y)
   traveled.value = 0
   status.value = 'playing'
   startedAt.value = performance.now()
@@ -149,6 +153,7 @@ function frame(now: number): void {
     traveled.value += Math.hypot(next.x - pos.x, next.y - pos.y)
     pos.x = next.x
     pos.y = next.y
+    trail.push(pos.x, pos.y)
     if (Math.hypot(pos.x - level.value.goal.x, pos.y - level.value.goal.y) < WIN_R) {
       vel.x = 0
       vel.y = 0
@@ -173,11 +178,12 @@ const pausedActions = computed(() => [
 ])
 
 const wonActions = computed(() => [
-  { label: '下一关', primary: true, onClick: () => emit('next') },
+  { label: '查看回顾', primary: true, onClick: () => (status.value = 'review') },
+  { label: '下一关', onClick: () => emit('next') },
   { label: '返回菜单', onClick: () => emit('exit') },
 ])
 
-const wonLines = computed(() => [
+const statsLines = computed(() => [
   `用时 ${formatTime(elapsedMs.value)}`,
   `距离 ${traveled.value.toFixed(1)}`,
   `迷宫 ${sizeHint.value} · 视野 ${radius.value}`,
@@ -215,39 +221,55 @@ onUnmounted(() => {
 
 <template>
   <section class="game">
-    <HudBar
-      :level-index="levelIndex"
-      :size-hint="sizeHint"
-      :radius="radius"
-      :distance="traveled"
-      :elapsed-ms="elapsedMs"
-      :seed="seed"
-      @pause="togglePause"
-      @restart="resetLevel"
-    />
-    <div class="stage">
-      <MazeCanvas
-        ref="canvasRef"
-        :level="level"
+    <template v-if="status === 'review'">
+      <header class="review-head">
+        <h2 class="rise">轨迹回顾</h2>
+        <ul class="stats rise" style="animation-delay: 80ms">
+          <li v-for="(line, i) in statsLines" :key="i">{{ line }}</li>
+        </ul>
+      </header>
+      <ReviewMap class="rise" style="animation-delay: 140ms" :level="level" :path="trail.points" />
+      <nav class="review-actions rise" style="animation-delay: 200ms">
+        <button class="interactive act is-active" @click="emit('next')">下一关</button>
+        <button class="interactive act" @click="resetLevel">重玩本关</button>
+        <button class="interactive act" @click="emit('exit')">返回菜单</button>
+      </nav>
+    </template>
+    <template v-else>
+      <HudBar
+        :level-index="levelIndex"
+        :size-hint="sizeHint"
         :radius="radius"
-        :animations="settings.animations"
+        :distance="traveled"
+        :elapsed-ms="elapsedMs"
+        :seed="seed"
+        @pause="togglePause"
+        @restart="resetLevel"
       />
-      <OverlayPanel
-        v-if="status === 'paused'"
-        key="paused"
-        title="已暂停"
-        :lines="[]"
-        :actions="pausedActions"
-      />
-      <OverlayPanel
-        v-else-if="status === 'won'"
-        key="won"
-        title="通关"
-        :lines="wonLines"
-        :actions="wonActions"
-      />
-    </div>
-    <p class="hint">ESC 暂停 · R 重开</p>
+      <div class="stage">
+        <MazeCanvas
+          ref="canvasRef"
+          :level="level"
+          :radius="radius"
+          :animations="settings.animations"
+        />
+        <OverlayPanel
+          v-if="status === 'paused'"
+          key="paused"
+          title="已暂停"
+          :lines="[]"
+          :actions="pausedActions"
+        />
+        <OverlayPanel
+          v-else-if="status === 'won'"
+          key="won"
+          title="通关"
+          :lines="statsLines"
+          :actions="wonActions"
+        />
+      </div>
+      <p class="hint">ESC 暂停 · R 重开</p>
+    </template>
   </section>
 </template>
 
@@ -257,6 +279,47 @@ onUnmounted(() => {
   flex-direction: column;
   gap: 14px;
   align-items: center;
+}
+
+.review-head {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+  text-align: center;
+}
+
+.review-head h2 {
+  margin: 0;
+  font-weight: 300;
+  font-size: 18px;
+  letter-spacing: 0.3em;
+}
+
+.stats {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px 14px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--fg-dim);
+}
+
+.review-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.act {
+  padding: 10px 16px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.12em;
 }
 
 .stage {

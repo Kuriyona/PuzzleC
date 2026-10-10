@@ -32,4 +32,4 @@ export interface Level {
   goal: Cell
 }
 
-export type GameStatus = 'playing' | 'paused' | 'won'
+export type GameStatus = 'playing' | 'paused' | 'won' | 'review'

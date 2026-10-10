@@ -28,14 +28,16 @@ App.vue  [screen, settings, seed, levelIndex]  watch(settings, deep) -> saveSett
   ├─ MenuScreen      props{settings}             emits start, settings
   ├─ SettingsScreen  v-model<Settings>           emits back
   └─ GameScreen      props{settings,seed,levelIndex}  emits next, exit
-        │   owns: single rAF loop, 250ms HUD timer, window key/listeners, physics
+        │   owns: single rAF loop, 250ms HUD timer, window key/listeners, physics, trail recording
         ├─ HudBar       props{levelIndex,sizeHint,radius,distance,elapsedMs,seed} emits pause, restart
         ├─ MazeCanvas   props{level,radius,animations}  exposes renderFrame(now,dt,pos)
-        └─ OverlayPanel props{title,lines,actions}      (paused / won overlays)
+        ├─ OverlayPanel props{title,lines,actions}      (paused / won overlays)
+        └─ ReviewMap    props{level,path}                (won → 全图回顾：全墙可视 + 轨迹折线 + 起终点)
 ```
 
 - `App.vue` is the only screen state machine; `screen` toggles `menu | settings | game`. `startGame()`/`nextLevel()` mint a new `randomSeed()`; `levelIndex` increments on next level.
-- Exactly **one** `requestAnimationFrame` loop exists, owned by `GameScreen.frame()` (`src/screens/GameScreen.vue:121`). It self-reschedules, computes `dt` (first frame 16ms, capped 50ms), advances physics only when `status === 'playing'`, and calls `canvasRef.value?.renderFrame(now, dt, pos)` unless paused. `MazeCanvas` never owns a loop — it draws on demand.
+- `GameStatus` = `playing | paused | won | review`; `review` is a GameScreen-internal state (not an `App` screen). It is reached only from the win overlay ("查看回顾") and swaps the stage for `ReviewMap`, keeping `level`/`pos`/trail alive; 下一关/重玩本关/返回菜单 exit it.
+- Exactly **one** `requestAnimationFrame` loop exists, owned by `GameScreen.frame()` (`src/screens/GameScreen.vue:125`). It self-reschedules, computes `dt` (first frame 16ms, capped 50ms), advances physics only when `status === 'playing'`, and calls `canvasRef.value?.renderFrame(now, dt, pos)` unless paused. `MazeCanvas` never owns a loop — it draws on demand.
 - Physics per frame: read `pressed` set → camera-relative input axes (diagonal scaled by `Math.SQRT1_2`) → velocity exponential approach (`SPEED=3.2` cells/s, `ACCEL_TAU=0.06s`) → `moveWithCollision` into a reused `next` object → win check within `WIN_R=0.3`.
 - Elapsed time: `performance.now() - startedAt - pausedAccumMs`; HUD refresh is a separate 250ms `setInterval`.
 - Rendering per frame (`MazeCanvas.renderFrame`): measure/DPR → clear → camera clamp + exponential ease → `computeVisibility` → clip to the fan polygon and fill a radial gradient → stroke visible wall segments in 16 brightness buckets → goal diamond + player dot.
@@ -46,8 +48,8 @@ Level creation: `GameScreen.resetLevel()` calls `generateMaze(cells, cells, prop
 
 | Path | Purpose |
 |---|---|
-| `src/game/` | Pure, framework-free game logic: `maze.ts` (generation + wall accessors + BFS), `visibility.ts` (raycast/fan), `collision.ts` (movement resolution), `settings.ts` (options + localStorage), `rng.ts` (seeded PRNG) |
-| `src/components/` | Presentational Vue SFCs: canvas renderer, HUD bar, overlay dialog |
+| `src/game/` | Pure, framework-free game logic: `maze.ts` (generation + wall accessors + BFS), `visibility.ts` (raycast/fan), `collision.ts` (movement resolution), `settings.ts` (options + localStorage), `rng.ts` (seeded PRNG), `trail.ts` (轨迹采样：`createTrail`，位移 ≥ `TRAIL_STEP` 才记录) |
+| `src/components/` | Presentational Vue SFCs: canvas renderer, HUD bar, overlay dialog, review map |
 | `src/screens/` | Screen-level SFCs: menu, settings editor, game loop owner |
 | `src/styles/` | `base.css`: CSS variables, `.interactive` inverted hover, transitions |
 | `src/types.ts` | All shared types (no runtime code) |
@@ -109,8 +111,10 @@ There is **no** `lint` or `format` script (see Runtime/Tooling Preferences). `ty
 | `src/game/visibility.ts` | `castRay`, `createVisibility`/`computeVisibility`, `isVisible`; fixed `lit` ordering relied on by tests |
 | `src/game/collision.ts` | `PLAYER_R = 0.18`, `moveWithCollision` (substep ≤ `radius/2`, resolve X then Y) |
 | `src/game/settings.ts` | `SETTINGS_KEY`, `DEFAULT_SETTINGS`, `sizeCells`, `radiusValue`, `load/saveSettings` |
+| `src/game/trail.ts` | `TRAIL_STEP`, `createTrail` → `{ points, reset, push }`; `points` is flat `[x,y,...]` continuous coords, reused buffer |
 | `src/components/MazeCanvas.vue` | Only place with DPR/camera/pixel math and the canvas paint order |
-| `src/screens/GameScreen.vue` | Only rAF loop, input handling, physics, win/pause transitions |
+| `src/components/ReviewMap.vue` | Full-map overview canvas: all wall segments at uniform brightness, trail polyline, start circle + goal diamond; draws once per resize |
+| `src/screens/GameScreen.vue` | Only rAF loop, input handling, physics, trail recording, win/pause/review transitions |
 | `index.html` | `#app` mount point + module script `/src/main.ts` |
 | `tsconfig.json`, `vite.config.ts`, `vitest.config.ts` | Strict-TS constraints, build target, test include pattern |
 | `task.md` | Original product brief (constraints) |
@@ -134,8 +138,8 @@ Visibility gotchas: `prev` in the angle dedup must be initialized to `-Infinity`
 ## Testing & QA
 
 - Framework: **Vitest 5**, `vitest.config.ts` → `{ test: { environment: 'node', include: ['tests/**/*.test.ts'] } }`. `globals` is **off**: every file imports `{ describe, expect, it } from 'vitest'` explicitly. No setup files, no coverage config, no DOM environment.
-- Baseline: **3 files / 24 passing cases in ~0.3s** (`tests/maze.test.ts` 10, `tests/visibility.test.ts` 8, `tests/collision.test.ts` 6). Keep it green; `pnpm test` runs one-shot (CI-style).
-- Scope: only the pure modules `src/game/{maze,visibility,collision}.ts` (+ `src/types.ts`) are covered. Vue components, `settings.ts` persistence, and `rng.ts` have **no** tests — add them deliberately if behavior changes there.
+- Baseline: **4 files / 30 passing cases in ~0.5s** (`tests/maze.test.ts` 10, `tests/visibility.test.ts` 8, `tests/collision.test.ts` 6, `tests/trail.test.ts` 6). Keep it green; `pnpm test` runs one-shot (CI-style).
+- Scope: only the pure modules `src/game/{maze,visibility,collision,trail}.ts` (+ `src/types.ts`) are covered. Vue components, `settings.ts` persistence, and `rng.ts` have **no** tests — add them deliberately if behavior changes there.
 - `tests/helpers.ts` is a plain module (not matched as a test). It exports `LevelSpec`, `makeLevel(spec): Level`, and `visibleMask(level, pos, radius): string[]`.
   - `makeLevel({ cols, rows, v: [[lineX, row], ...], h: [[lineY, col], ...], start?, goal? })` builds levels with the outer ring always walled and the interior open except for explicitly listed segments — so visibility/collision can be asserted against hand-computed geometry, independent of `generateMaze`.
   - `visibleMask` renders an `isVisible` grid as `'#'`/`'.'` strings for readable assertions.
