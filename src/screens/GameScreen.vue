@@ -6,6 +6,7 @@ import { radiusValue, sizeCells } from '../game/settings'
 import { PLAYER_R, moveWithCollision } from '../game/collision'
 import { seedLabel } from '../game/rng'
 import { createTrail } from '../game/trail'
+import { useT } from '../i18n/useI18n'
 import MazeCanvas from '../components/MazeCanvas.vue'
 import HudBar from '../components/HudBar.vue'
 import OverlayPanel from '../components/OverlayPanel.vue'
@@ -19,6 +20,8 @@ const props = defineProps<{
   mazeTheme: ThemeId
 }>()
 const emit = defineEmits<{ next: []; exit: [] }>()
+
+const t = useT()
 
 const SPEED = 3.2 // 格/秒
 const ACCEL_TAU = 0.06 // 秒
@@ -198,15 +201,15 @@ function formatTime(ms: number): string {
 }
 
 const pausedActions = computed(() => [
-  { label: '继续', active: true, primary: true, onClick: resumeGame },
-  { label: '重开本关', onClick: resetLevel },
-  { label: '返回菜单', onClick: () => emit('exit') },
+  { label: t('game.action.resume'), active: true, primary: true, onClick: resumeGame },
+  { label: t('game.action.restartLevel'), onClick: resetLevel },
+  { label: t('game.action.menu'), onClick: () => emit('exit') },
 ])
 
 const wonActions = computed(() => [
-  { label: '查看回顾', active: true, primary: true, onClick: openReview },
-  { label: '下一关', onClick: () => emit('next') },
-  { label: '返回菜单', onClick: () => emit('exit') },
+  { label: t('game.action.review'), active: true, primary: true, onClick: openReview },
+  { label: t('game.action.next'), onClick: () => emit('next') },
+  { label: t('game.action.menu'), onClick: () => emit('exit') },
 ])
 
 function openReview(): void {
@@ -243,10 +246,10 @@ function onReviewSeek(e: Event): void {
 }
 
 const statsLines = computed(() => [
-  `用时 ${formatTime(elapsedMs.value)}`,
-  `距离 ${traveled.value.toFixed(1)}`,
-  `迷宫 ${sizeHint.value} · 视野 ${radius.value}`,
-  `种子 ${seedLabel(props.seed)}`,
+  t('game.stats.time', { time: formatTime(elapsedMs.value) }),
+  t('game.stats.distance', { distance: traveled.value.toFixed(1) }),
+  t('game.stats.maze', { size: sizeHint.value, radius: radius.value }),
+  t('game.stats.seed', { seed: seedLabel(props.seed) }),
 ])
 
 watch(
@@ -282,7 +285,7 @@ onUnmounted(() => {
   <section class="game">
     <template v-if="status === 'review'">
       <header class="review-head">
-        <h2 class="rise">轨迹回顾</h2>
+        <h2 class="rise">{{ t('game.review.title') }}</h2>
         <ul class="stats rise" style="animation-delay: 80ms">
           <li v-for="(line, i) in statsLines" :key="i">{{ line }}</li>
         </ul>
@@ -298,7 +301,7 @@ onUnmounted(() => {
       />
       <div class="playback rise" style="animation-delay: 200ms">
         <button class="interactive act" @click="toggleReviewPlay">
-          {{ reviewPlaying ? '暂停' : '播放' }}
+          {{ reviewPlaying ? t('game.action.pause') : t('game.action.play') }}
         </button>
         <input
           class="seek"
@@ -307,7 +310,7 @@ onUnmounted(() => {
           :max="seekMax"
           step="1"
           :value="reviewMs"
-          aria-label="播放进度"
+          :aria-label="t('game.review.progress')"
           @pointerdown="onScrubStart"
           @pointerup="onScrubEnd"
           @pointercancel="onScrubEnd"
@@ -327,9 +330,15 @@ onUnmounted(() => {
         </div>
       </div>
       <nav class="review-actions rise" style="animation-delay: 240ms">
-        <button class="interactive act is-active" @click="emit('next')">下一关</button>
-        <button class="interactive act" @click="resetLevel">重玩本关</button>
-        <button class="interactive act" @click="emit('exit')">返回菜单</button>
+        <button class="interactive act is-active" @click="emit('next')">
+          {{ t('game.action.next') }}
+        </button>
+        <button class="interactive act" @click="resetLevel">
+          {{ t('game.action.replayLevel') }}
+        </button>
+        <button class="interactive act" @click="emit('exit')">
+          {{ t('game.action.menu') }}
+        </button>
       </nav>
     </template>
     <template v-else>
@@ -354,19 +363,19 @@ onUnmounted(() => {
         <OverlayPanel
           v-if="status === 'paused'"
           key="paused"
-          title="已暂停"
+          :title="t('game.paused')"
           :lines="[]"
           :actions="pausedActions"
         />
         <OverlayPanel
           v-else-if="status === 'won'"
           key="won"
-          title="通关"
+          :title="t('game.won')"
           :lines="statsLines"
           :actions="wonActions"
         />
       </div>
-      <p class="hint">ESC 暂停 · R 重开</p>
+      <p class="hint">{{ t('game.hint') }}</p>
     </template>
   </section>
 </template>

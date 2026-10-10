@@ -5,6 +5,7 @@ import { sampleTrail } from '../game/trail'
 import { PLAYER_R } from '../game/collision'
 import { addLevelWalls, wallLineWidth } from '../render/walls'
 import { CANVAS_PALETTES, inkRgba } from '../render/palette'
+import { useT } from '../i18n/useI18n'
 
 const props = defineProps<{
   level: Level
@@ -14,6 +15,7 @@ const props = defineProps<{
 }>()
 
 const canvasRef = ref<HTMLCanvasElement | null>(null)
+const t = useT()
 /** 元素底色用迷宫主题的 paper（不是 --bg，那是 UI 主题）：首帧之前不留异色底 */
 const paper = computed(() => CANVAS_PALETTES[props.theme].paper)
 
@@ -148,7 +150,7 @@ onUnmounted(() => {
     ref="canvasRef"
     class="overview"
     :style="{ background: paper }"
-    aria-label="迷宫全图与轨迹回放"
+    :aria-label="t('game.reviewMap')"
   ></canvas>
 </template>
 

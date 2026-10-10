@@ -2,9 +2,12 @@
 import type { Settings } from '../types'
 import { SIZE_OPTIONS } from '../game/maze'
 import { radiusValue } from '../game/settings'
+import { useT } from '../i18n/useI18n'
 
 const props = defineProps<{ settings: Settings }>()
 defineEmits<{ start: []; settings: [] }>()
+
+const t = useT()
 
 const sizeOption = () => SIZE_OPTIONS.find((o) => o.id === props.settings.size) ?? SIZE_OPTIONS[1]
 </script>
@@ -28,14 +31,14 @@ const sizeOption = () => SIZE_OPTIONS.find((o) => o.id === props.settings.size) 
           style="animation-delay: 160ms"
           @click="$emit('start')"
         >
-          开始游戏
+          {{ t('menu.start') }}
         </button>
         <button
           class="interactive item rise"
           style="animation-delay: 230ms"
           @click="$emit('settings')"
         >
-          设置
+          {{ t('menu.settings') }}
         </button>
         <a
           class="interactive item rise"
@@ -49,10 +52,15 @@ const sizeOption = () => SIZE_OPTIONS.find((o) => o.id === props.settings.size) 
       </nav>
 
       <footer class="foot rise" style="animation-delay: 370ms">
-        <p>方向键 / WASD 移动 · ESC 暂停 · 抵达白色菱形即通关</p>
+        <p>{{ t('menu.controls') }}</p>
         <p>
-          迷宫 {{ sizeOption().hint }} · 视野 {{ radiusValue(settings.radius) }} · 动画
-          {{ settings.animations ? '开' : '关' }}
+          {{
+            t('menu.stats', {
+              size: sizeOption().hint,
+              radius: radiusValue(settings.radius),
+              anim: settings.animations ? t('common.on') : t('common.off'),
+            })
+          }}
         </p>
       </footer>
     </div>

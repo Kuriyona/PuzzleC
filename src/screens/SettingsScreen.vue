@@ -1,10 +1,19 @@
 <script setup lang="ts">
 import type { Settings } from '../types'
 import { SIZE_OPTIONS } from '../game/maze'
-import { MAZE_THEME_OPTIONS, RADIUS_OPTIONS, UI_THEME_OPTIONS, DEFAULT_SETTINGS } from '../game/settings'
+import {
+  MAZE_THEME_OPTIONS,
+  RADIUS_OPTIONS,
+  UI_THEME_OPTIONS,
+  DEFAULT_SETTINGS,
+} from '../game/settings'
+import { LOCALE_OPTIONS } from '../i18n/messages'
+import { useT } from '../i18n/useI18n'
 
 const model = defineModel<Settings>({ required: true })
 defineEmits<{ back: [] }>()
+
+const t = useT()
 
 function apply(patch: Partial<Settings>): void {
   model.value = { ...model.value, ...patch }
@@ -18,13 +27,28 @@ function restoreDefaults(): void {
 <template>
   <section class="settings rise">
     <header class="head">
-      <h2>设置</h2>
-      <button class="interactive back" @click="$emit('back')">返回</button>
+      <h2>{{ t('settings.title') }}</h2>
+      <button class="interactive back" @click="$emit('back')">{{ t('settings.back') }}</button>
     </header>
 
     <div class="rows">
       <div class="row">
-        <span class="label">界面主题</span>
+        <span class="label">{{ t('settings.language') }}</span>
+        <div class="seg">
+          <button
+            v-for="opt in LOCALE_OPTIONS"
+            :key="opt.id"
+            class="interactive seg-btn"
+            :class="{ 'is-active': model.locale === opt.id }"
+            @click="apply({ locale: opt.id })"
+          >
+            {{ opt.label }}
+          </button>
+        </div>
+      </div>
+
+      <div class="row">
+        <span class="label">{{ t('settings.uiTheme') }}</span>
         <div class="seg">
           <button
             v-for="opt in UI_THEME_OPTIONS"
@@ -33,13 +57,13 @@ function restoreDefaults(): void {
             :class="{ 'is-active': model.uiTheme === opt.id }"
             @click="apply({ uiTheme: opt.id })"
           >
-            {{ opt.label }}
+            {{ t(opt.labelKey) }}
           </button>
         </div>
       </div>
 
       <div class="row">
-        <span class="label">迷宫主题</span>
+        <span class="label">{{ t('settings.mazeTheme') }}</span>
         <div class="seg">
           <button
             v-for="opt in MAZE_THEME_OPTIONS"
@@ -48,13 +72,13 @@ function restoreDefaults(): void {
             :class="{ 'is-active': model.mazeTheme === opt.id }"
             @click="apply({ mazeTheme: opt.id })"
           >
-            {{ opt.label }}
+            {{ t(opt.labelKey) }}
           </button>
         </div>
       </div>
 
       <div class="row">
-        <span class="label">迷宫尺寸</span>
+        <span class="label">{{ t('settings.size') }}</span>
         <div class="seg">
           <button
             v-for="opt in SIZE_OPTIONS"
@@ -63,13 +87,13 @@ function restoreDefaults(): void {
             :class="{ 'is-active': model.size === opt.id }"
             @click="apply({ size: opt.id })"
           >
-            {{ opt.label }} · {{ opt.hint }}
+            {{ t(opt.labelKey) }} · {{ opt.hint }}
           </button>
         </div>
       </div>
 
       <div class="row">
-        <span class="label">视野半径</span>
+        <span class="label">{{ t('settings.radius') }}</span>
         <div class="seg">
           <button
             v-for="opt in RADIUS_OPTIONS"
@@ -78,34 +102,36 @@ function restoreDefaults(): void {
             :class="{ 'is-active': model.radius === opt.id }"
             @click="apply({ radius: opt.id })"
           >
-            {{ opt.label }} · {{ opt.value }}
+            {{ t(opt.labelKey) }} · {{ opt.value }}
           </button>
         </div>
       </div>
 
       <div class="row">
-        <span class="label">动画效果</span>
+        <span class="label">{{ t('settings.animations') }}</span>
         <div class="seg">
           <button
             class="interactive seg-btn"
             :class="{ 'is-active': model.animations }"
             @click="apply({ animations: true })"
           >
-            开
+            {{ t('common.on') }}
           </button>
           <button
             class="interactive seg-btn"
             :class="{ 'is-active': !model.animations }"
             @click="apply({ animations: false })"
           >
-            关
+            {{ t('common.off') }}
           </button>
         </div>
       </div>
     </div>
 
     <footer class="foot">
-      <button class="interactive reset" @click="restoreDefaults">恢复默认</button>
+      <button class="interactive reset" @click="restoreDefaults">
+        {{ t('settings.reset') }}
+      </button>
     </footer>
   </section>
 </template>

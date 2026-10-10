@@ -1,11 +1,17 @@
 import type { Cell, Level, SizeId } from '../types'
+import type { MessageKey } from '../i18n/messages'
 import { mulberry32 } from './rng'
 
 export const SIZE_OPTIONS = [
-  { id: 'small', label: '小', cells: 6, hint: '6×6' },
-  { id: 'medium', label: '中', cells: 10, hint: '10×10' },
-  { id: 'large', label: '大', cells: 15, hint: '15×15' },
-] as const satisfies readonly { id: SizeId; label: string; cells: number; hint: string }[]
+  { id: 'small', labelKey: 'opt.size.small', cells: 6, hint: '6×6' },
+  { id: 'medium', labelKey: 'opt.size.medium', cells: 10, hint: '10×10' },
+  { id: 'large', labelKey: 'opt.size.large', cells: 15, hint: '15×15' },
+] as const satisfies readonly {
+  id: SizeId
+  labelKey: MessageKey
+  cells: number
+  hint: string
+}[]
 
 /** 越界 → true（外圈即墙）。 */
 export function hasVWall(level: Level, lineX: number, row: number): boolean {

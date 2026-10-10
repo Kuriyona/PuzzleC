@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { seedLabel } from '../game/rng'
+import { useT } from '../i18n/useI18n'
 
 defineProps<{
   levelIndex: number
@@ -12,6 +13,8 @@ defineProps<{
 
 defineEmits<{ pause: []; restart: [] }>()
 
+const t = useT()
+
 function formatTime(ms: number): string {
   const mm = String(Math.floor(ms / 60000)).padStart(2, '0')
   const ss = String(Math.floor(ms / 1000) % 60).padStart(2, '0')
@@ -22,16 +25,16 @@ function formatTime(ms: number): string {
 <template>
   <header class="hud">
     <div class="stats">
-      <span>第 {{ levelIndex }} 关</span>
-      <i></i><span>距离 {{ distance.toFixed(1) }}</span>
-      <i></i><span>用时 {{ formatTime(elapsedMs) }}</span>
-      <i></i><span>迷宫 {{ sizeHint }}</span>
-      <i></i><span>视野 {{ radius }}</span>
-      <i></i><span>种子 {{ seedLabel(seed) }}</span>
+      <span>{{ t('game.hud.level', { level: levelIndex }) }}</span>
+      <i></i><span>{{ t('game.stats.distance', { distance: distance.toFixed(1) }) }}</span>
+      <i></i><span>{{ t('game.stats.time', { time: formatTime(elapsedMs) }) }}</span>
+      <i></i><span>{{ t('game.hud.maze', { size: sizeHint }) }}</span>
+      <i></i><span>{{ t('game.hud.radius', { radius }) }}</span>
+      <i></i><span>{{ t('game.stats.seed', { seed: seedLabel(seed) }) }}</span>
     </div>
     <div class="controls">
-      <button class="interactive btn" @click="$emit('pause')">暂停 (ESC)</button>
-      <button class="interactive btn" @click="$emit('restart')">重开 (R)</button>
+      <button class="interactive btn" @click="$emit('pause')">{{ t('game.hud.pause') }}</button>
+      <button class="interactive btn" @click="$emit('restart')">{{ t('game.hud.restart') }}</button>
     </div>
   </header>
 </template>

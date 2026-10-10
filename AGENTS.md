@@ -24,7 +24,7 @@ HUD metrics were chosen during implementation (see the approved plan, not in-rep
 
 ```
 main.ts ── createApp(App).mount('#app')                     (imports styles/base.css)
-App.vue  [screen, settings, seed, levelIndex, uiTheme, mazeTheme]  watch(settings, deep) -> saveSettings()
+App.vue  [screen, settings, seed, levelIndex, uiTheme, mazeTheme, locale]  watch(settings, deep) -> saveSettings()
   ├─ MenuScreen      props{settings}             emits start, settings
   ├─ SettingsScreen  v-model<Settings>           emits back
   ├─ OverlayPanel    首次开始游戏的主题引导（plain，选择游玩模式）
@@ -37,9 +37,11 @@ App.vue  [screen, settings, seed, levelIndex, uiTheme, mazeTheme]  watch(setting
 
 src/render/walls.ts —— MazeCanvas 与 ReviewMap 共用的墙体绘制（实体墙几何 + 连续亮度渐变）
 src/render/palette.ts —— Canvas 配色（CANVAS_PALETTES：深色 = 黑底白光 / 浅色 = 白底黑墨）
+src/i18n/messages.ts —— 四种界面语言的完整消息表（zh-Hans 为键集合真源）+ translate()
+src/i18n/useI18n.ts —— provideLocale() / useT()：注入语言 ref，模板里调用即自动响应式
 ```
 
-- `App.vue` is the only screen state machine; `screen` toggles `menu | settings | game`. `startGame()`/`nextLevel()` mint a new `randomSeed()`; `levelIndex` increments on next level. It also resolves both theme axes and puts the UI one on its root element (`'theme-light': uiTheme === 'light'`), passing the resolved maze theme down to `GameScreen`; see the theme section below.
+- `App.vue` is the only screen state machine; `screen` toggles `menu | settings | game`. `startGame()`/`nextLevel()` mint a new `randomSeed()`; `levelIndex` increments on next level. It also resolves both theme axes and puts the UI one on its root element (`'theme-light': uiTheme === 'light'`), passing the resolved maze theme down to `GameScreen`; see the theme section below. It is likewise the single owner of the UI language: it provides `settings.locale` as a ref and syncs `document.documentElement.lang`; see the localization section below.
 - `GameStatus` = `playing | paused | won | review`; `review` is a GameScreen-internal state (not an `App` screen). Reached only from the win overlay ("查看回顾"); it keeps `level`/`pos`/trail alive and replays the recorded timeline on `ReviewMap` (play/pause, 0.5/1/2/4× speed, draggable seek bar). Playback time `reviewPlayMs` is a plain value advanced in `frame()` (ms * speed, clamped to `reviewDuration`); only the clock/seek-bar read `reviewMs` (ref), so no per-frame reactive state. 下一关/重玩本关/返回菜单 exit it.
 - Exactly **one** `requestAnimationFrame` loop exists, owned by `GameScreen.frame()` (`src/screens/GameScreen.vue:142`). It self-reschedules, computes `dt` (first frame 16ms, capped 50ms), advances physics only when `status === 'playing'`, and calls `canvasRef.value?.renderFrame(now, dt, pos)` unless paused. `MazeCanvas` never owns a loop — it draws on demand.
 - Physics per frame: read `pressed` set → camera-relative input axes (diagonal scaled by `Math.SQRT1_2`) → velocity exponential approach (`SPEED=3.2` cells/s, `ACCEL_TAU=0.06s`) → `moveWithCollision` into a reused `next` object → win check within `WIN_R=0.3`.
@@ -56,6 +58,7 @@ Level creation: `GameScreen.resetLevel()` calls `generateMaze(cells, cells, prop
 | `src/game/` | Pure, framework-free game logic: `maze.ts` (generation + wall accessors + BFS), `visibility.ts` (raycast/fan), `collision.ts` (movement resolution), `settings.ts` (options + localStorage), `rng.ts` (seeded PRNG), `trail.ts` (轨迹采样：`createTrail` 记录 `points`+`times`，位移 ≥ `TRAIL_STEP` 才记录；`sampleTrail` 按时间插值) |
 | `src/components/` | Presentational Vue SFCs: canvas renderer, HUD bar, overlay dialog, review map |
 | `src/render/` | Framework-free Canvas 2D helpers shared by the canvases: `walls.ts` (solid-wall geometry, thickness, continuous brightness gradient), `palette.ts` (`CanvasPalette`, `CANVAS_PALETTES` per `ThemeId`, `inkRgba`) |
+| `src/i18n/` | Localization: `messages.ts` (pure `MESSAGES` catalogue + `translate`, `LOCALE_OPTIONS`/`LOCALE_TAGS`, `MessageKey`) and `useI18n.ts` (Vue-only `provideLocale`/`useT`) |
 | `src/screens/` | Screen-level SFCs: menu, settings editor, game loop owner |
 | `src/styles/` | `base.css`: CSS variables, dark `:root` + `.theme-light` palette, `.interactive` inverted hover, transitions |
 | `src/types.ts` | All shared types (no runtime code) |
@@ -97,12 +100,12 @@ There is **no** `lint` or `format` script (see Runtime/Tooling Preferences). `ty
 - No-allocation hot paths: functions write into caller-provided `out` params and reuse module-level buffers. `computeVisibility(level, pos, radius, out: Visibility)` resets `out.fan/lit/angles.length = 0` and pushes — keep this shape; do not allocate per frame.
 - Kept-out-of-Vue-reactivity state is deliberate: `pos`, `vel`, `next`, `pressed` in `GameScreen.vue` and `ctx`/`cam`/`vis` in `MazeCanvas.vue` are plain module-scope values. Only template-consumed values are `ref`/`computed`. Do not convert per-frame data to refs, and do not reintroduce a "grid pos vs render pos" dual track.
 - `verbatimModuleSyntax` is on: type-only imports **must** use `import type { Level, Vec2 } from '../types'`.
-- Options tables use `as const satisfies readonly {...}[]` (see `SIZE_OPTIONS`, `RADIUS_OPTIONS`).
+- Options tables use `as const satisfies readonly {...}[]` (see `SIZE_OPTIONS`, `RADIUS_OPTIONS`); display text is never stored there — each entry carries a `labelKey: MessageKey` resolved through `t()` at render time.
 - Types are named and imported from their owning module; do not publish contracts as `ReturnType<typeof fn>`.
 
 **Vue SFC conventions.** `<script setup lang="ts">`; props via `defineProps<{...}>()`, emits via `defineEmits<{name:[args]}>()`; two-way binding through `defineModel<Settings>({ required: true })` and whole-object replacement (`{ ...model.value, ...patch }`). `defineExpose({ renderFrame })` is the imperative canvas API. Every mutable listener/timer is torn down in `onUnmounted`.
 
-**Style conventions.** UI text and code comments are Chinese (shared vocabulary: 格, 墙段, 连续坐标, 贴墙滑动). Global CSS variables live in `src/styles/base.css` (`--bg`, `--fg`, `--fg-dim`, `--fg-faint`, `--line`, `--panel`, `--inv-bg`, `--inv-fg`, `--scrim`, `--ease`, `--dur`, `--font-ui`, `--font-mono`); every clickable element carries the `interactive` class (inverted hover), `.is-active` means inverted, `.rise` is the entrance animation, and `.no-anim` on the App root disables all animation when `settings.animations === false`. Component styles are `scoped`. `MenuScreen` is a full-viewport panel that **follows the UI theme**: `.menu` is `position: fixed; inset: 0`, takes its surface/ink from the global variables (no local palette), and lays out title top-left / buttons bottom-left with `justify-content: space-between`. Its `.item` only nulls the border (`border-color: transparent`) and bleeds left (`margin-left: -16px`) so button text aligns with the title; the shared `.interactive` hover inversion re-colors itself, and the decorative backdrop uses theme-neutral values (`var(--line)` dots, mid-grey orb) so it works on both surfaces.
+**Style conventions.** Code comments and the `zh-Hans` source strings are Chinese (shared vocabulary: 格, 墙段, 连续坐标, 贴墙滑动); every user-facing string goes through the i18n catalogue (see Localization below) — no literal UI text in SFCs. Global CSS variables live in `src/styles/base.css` (`--bg`, `--fg`, `--fg-dim`, `--fg-faint`, `--line`, `--panel`, `--inv-bg`, `--inv-fg`, `--scrim`, `--ease`, `--dur`, `--font-ui`, `--font-mono`); every clickable element carries the `interactive` class (inverted hover), `.is-active` means inverted, `.rise` is the entrance animation, and `.no-anim` on the App root disables all animation when `settings.animations === false`. Component styles are `scoped`. `MenuScreen` is a full-viewport panel that **follows the UI theme**: `.menu` is `position: fixed; inset: 0`, takes its surface/ink from the global variables (no local palette), and lays out title top-left / buttons bottom-left with `justify-content: space-between`. Its `.item` only nulls the border (`border-color: transparent`) and bleeds left (`margin-left: -16px`) so button text aligns with the title; the shared `.interactive` hover inversion re-colors itself, and the decorative backdrop uses theme-neutral values (`var(--line)` dots, mid-grey orb) so it works on both surfaces.
 
 **Two independent theme axes** — do not collapse them back into one:
 
@@ -115,6 +118,14 @@ First start: `startGame()` intercepts the **first** 开始游戏 and shows the s
 
 Gotcha: `body { color: var(--fg); background: var(--bg) }` only ever sees the `:root` values, so descendants that merely inherit (e.g. the overlay panel's text) are re-coloured by `.app`'s own `background`/`color` declaration — re-declaring the variables alone is not enough. Never hardcode `#000`/`#fff`/`rgba(255,255,255,…)` in a screen or canvas: use the variables or `inkRgba`.
 
+**Localization** — four locales (`zh-Hans | zh-Hant | en | ja`), orthogonal to the theme axes:
+
+- `Settings.locale` (default `zh-Hans`) is the single source. `App.vue` derives `locale = computed(() => settings.value.locale)`, calls `provideLocale(locale)`, and mirrors it to `document.documentElement.lang` via `LOCALE_TAGS`.
+- `src/i18n/messages.ts` is pure and framework-free. `MESSAGES` is typed `Record<LocaleId, Record<MessageKey, string>>` where `MessageKey` is the key union of the `zh-Hans` object — so a missing or stray key in any other locale is a **compile error**. `translate(locale, key, params)` fills `{name}` placeholders, falls back to `zh-Hans` for an unknown locale, and returns the key itself for an unknown key (never throws). `LOCALE_OPTIONS` holds native-language labels (identical strings in every locale); `isLocaleId` validates persisted values.
+- Components call `const t = useT()` (`src/i18n/useI18n.ts`), which injects the provided locale ref and returns a plain function; reading `locale.value` inside a template records it as a render dependency, so switching language re-renders everything with no extra plumbing (`tests/…` verified this over provide/inject). Because `inject` only walks *parent* provides, the provider (`App.vue`) cannot inject from itself — it builds `t` directly from `translate(locale.value, …)`.
+- Option tables (`SIZE_OPTIONS`, `UI_THEME_OPTIONS`, `MAZE_THEME_OPTIONS`, `RADIUS_OPTIONS`) carry `labelKey: MessageKey` instead of display text; SFCs render `t(opt.labelKey)`. Numeric `hint`/`value` stay literal. The `SettingsScreen` language row patches `Settings.locale` exactly like the other rows.
+- Rules: no literal UI text in SFCs (add keys to the catalogue); 恢复默认 resets the language too (it is part of the settings blob).
+
 **Error handling.** Gameplay code does not throw; invalid input is clamped or ignored (out-of-range walls, `Math.min/Math.max` clamps, `loadSettings` validating every field and falling back to fresh defaults).
 
 ## Important Files
@@ -122,12 +133,14 @@ Gotcha: `body { color: var(--fg); background: var(--bg) }` only ever sees the `:
 | File | Why it matters |
 |---|---|
 | `src/main.ts` | Entry point; mounts `App` into `#app`, imports global CSS |
-| `src/App.vue` | Screen state machine, settings watch/persist, seed + level index ownership, **theme resolution**（uiTheme/mazeTheme → `ThemeId`，订阅系统配色）, first-run theme chooser |
+| `src/App.vue` | Screen state machine, settings watch/persist, seed + level index ownership, **theme resolution**（uiTheme/mazeTheme → `ThemeId`，订阅系统配色）与**语言 provide**（`settings.locale` → `document.documentElement.lang`）, first-run theme chooser |
 | `src/types.ts` | `Level` = grid + wall segments; all cross-module contracts |
 | `src/game/maze.ts` | `generateMaze` (iterative backtracker, perfect maze), `hasVWall`/`hasHWall`, `bfs`, `farthestCell` |
 | `src/game/visibility.ts` | `castRay`, `createVisibility`/`computeVisibility`, `isVisible`; `lit` = 每条边的**可见部分**（`pushVisibleSpans` 采样 + 二分细化），固定顺序被测试断言 |
 | `src/game/collision.ts` | `PLAYER_R = 0.18`, `moveWithCollision` (substep ≤ `radius/2`, resolve X then Y) |
-| `src/game/settings.ts` | `SETTINGS_KEY`/`INTRO_KEY`, `DEFAULT_SETTINGS`, `UI_THEME_OPTIONS`/`MAZE_THEME_OPTIONS`/`RADIUS_OPTIONS`, `sizeCells`, `radiusValue`, `load/saveSettings`, `loadIntroSeen`/`markIntroSeen`, `prefersDarkScheme`/`subscribeSystemScheme` |
+| `src/game/settings.ts` | `SETTINGS_KEY`/`INTRO_KEY`, `DEFAULT_SETTINGS`, `UI_THEME_OPTIONS`/`MAZE_THEME_OPTIONS`/`RADIUS_OPTIONS`（`labelKey` 而非文案）, `sizeCells`, `radiusValue`, `load/saveSettings`（逐字段校验，含 `locale` 的 `isLocaleId`）, `loadIntroSeen`/`markIntroSeen`, `prefersDarkScheme`/`subscribeSystemScheme` |
+| `src/i18n/messages.ts` | 四语言 `MESSAGES`（`zh-Hans` 定义 `MessageKey`，缺键/多键编译报错）、`translate`、`LOCALE_OPTIONS`/`LOCALE_TAGS`/`isLocaleId` |
+| `src/i18n/useI18n.ts` | `LOCALE_KEY`、`provideLocale(locale)`、`useT()`（inject → 模板里调用即响应式；provider 自身不能 inject） |
 | `src/game/trail.ts` | `TRAIL_STEP`, `createTrail` → `{ points, times, reset(x,y,t), push(x,y,t) }` (flat `[x,y,...]` + parallel `times`, reused buffers), `sampleTrail(points,times,t,out)` → 二分+线性插值 |
 | `src/components/MazeCanvas.vue` | DPR/camera/pixel math + canvas paint order; walls via `src/render/walls.ts`; `theme` prop → `CANVAS_PALETTES` |
 | `src/components/ReviewMap.vue` | Full-map overview canvas: all walls (shared geometry) at uniform brightness, full trail (dim) + traversed portion (bright) + player dot; `renderFrame(ms)` replayed imperatively from the game loop; `theme` prop → `CANVAS_PALETTES` |
@@ -157,8 +170,9 @@ Visibility gotchas: `prev` in the angle dedup must be initialized to `-Infinity`
 ## Testing & QA
 
 - Framework: **Vitest 5**, `vitest.config.ts` → `{ test: { environment: 'node', include: ['tests/**/*.test.ts'] } }`. `globals` is **off**: every file imports `{ describe, expect, it } from 'vitest'` explicitly. No setup files, no coverage config, no DOM environment.
-- Baseline: **5 files / 45 passing cases in ~0.5s** (`tests/maze.test.ts` 10, `tests/visibility.test.ts` 11, `tests/collision.test.ts` 6, `tests/trail.test.ts` 11, `tests/walls.test.ts` 7). Keep it green; `pnpm test` runs one-shot (CI-style).
-- Scope: only the pure modules `src/game/{maze,visibility,collision,trail}.ts`, `src/render/walls.ts` (+ `src/types.ts`) are covered. Vue components, `settings.ts` persistence, `src/render/palette.ts`, and `rng.ts` have **no** tests — add them deliberately if behavior changes there.
+- Baseline: **6 files / 54 passing cases in ~0.5s** (`tests/maze.test.ts` 10, `tests/visibility.test.ts` 11, `tests/collision.test.ts` 6, `tests/trail.test.ts` 11, `tests/walls.test.ts` 7, `tests/i18n.test.ts` 9). Keep it green; `pnpm test` runs one-shot (CI-style).
+- Scope: only the pure modules `src/game/{maze,visibility,collision,trail}.ts`, `src/render/walls.ts`, `src/i18n/messages.ts` (+ `src/types.ts`) are covered. Vue components, `settings.ts` persistence, `src/render/palette.ts`, `src/i18n/useI18n.ts`, and `rng.ts` have **no** tests — add them deliberately if behavior changes there.
+  - `tests/i18n.test.ts` pins: identical key sets across the four locales, non-empty values, identical `{placeholder}` sets per key, `LOCALE_TAGS`/`LOCALE_OPTIONS` ↔ `LocaleId` parity, placeholder substitution, unknown-locale/unknown-key fallbacks, and that every option table's `labelKey` resolves in every locale.
 - `tests/helpers.ts` is a plain module (not matched as a test). It exports `LevelSpec`, `makeLevel(spec): Level`, and `visibleMask(level, pos, radius): string[]`.
   - `makeLevel({ cols, rows, v: [[lineX, row], ...], h: [[lineY, col], ...], start?, goal? })` builds levels with the outer ring always walled and the interior open except for explicitly listed segments — so visibility/collision can be asserted against hand-computed geometry, independent of `generateMaze`.
   - `visibleMask` renders an `isVisible` grid as `'#'`/`'.'` strings for readable assertions.

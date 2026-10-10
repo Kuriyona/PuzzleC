@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref, watch } from 'vue'
-import type { Screen, Settings, ThemeId } from './types'
+import type { LocaleId, Screen, Settings, ThemeId } from './types'
 import {
   loadIntroSeen,
   loadSettings,
@@ -9,6 +9,9 @@ import {
   saveSettings,
   subscribeSystemScheme,
 } from './game/settings'
+import { LOCALE_TAGS, translate } from './i18n/messages'
+import type { TranslateFn } from './i18n/useI18n'
+import { provideLocale } from './i18n/useI18n'
 import { randomSeed } from './game/rng'
 import OverlayPanel from './components/OverlayPanel.vue'
 import MenuScreen from './screens/MenuScreen.vue'
@@ -21,6 +24,17 @@ const seed = ref<number>(randomSeed())
 const levelIndex = ref<number>(1)
 
 watch(settings, () => saveSettings(settings.value), { deep: true })
+
+// 界面语言：注入给所有后代组件；同时同步 <html lang> 让浏览器选对字体与断行规则
+const locale = computed<LocaleId>(() => settings.value.locale)
+provideLocale(locale)
+// App 自身是 provide 的源头，不能靠 inject 拿翻译（inject 只看父级 provides），直接调 translate
+const t: TranslateFn = (key, params) => translate(locale.value, key, params)
+watch(
+  locale,
+  (value) => (document.documentElement.lang = LOCALE_TAGS[value]),
+  { immediate: true },
+)
 
 // 系统配色：uiTheme === 'system' 时跟着它走（媒体查询变化要能实时反映）
 const systemDark = ref(prefersDarkScheme())
@@ -42,20 +56,20 @@ const mazeTheme = computed<ThemeId>(() =>
 // 首次开始游戏时的主题引导：选一次即记档，之后只在设置里改
 const introSeen = ref(loadIntroSeen())
 const askingIntro = ref(false)
-const introLines = ['选择后仍可在设置里随时更改']
-const introActions = [
+const introLines = computed(() => [t('intro.line')])
+const introActions = computed(() => [
   {
-    label: '深色游玩（推荐）',
-    hint: '迷宫背景为纯黑，墙体与光点为白色',
+    label: t('intro.dark'),
+    hint: t('intro.darkHint'),
     primary: true,
     onClick: () => chooseMazeTheme('dark'),
   },
   {
-    label: '浅色游玩',
-    hint: '迷宫背景为纯白，墙体与光点为黑色',
+    label: t('intro.light'),
+    hint: t('intro.lightHint'),
     onClick: () => chooseMazeTheme('light'),
   },
-]
+])
 
 function chooseMazeTheme(theme: ThemeId): void {
   settings.value = { ...settings.value, mazeTheme: theme }
@@ -115,7 +129,7 @@ function nextLevel(): void {
 
     <OverlayPanel
       v-if="askingIntro"
-      title="选择游玩模式"
+      :title="t('intro.title')"
       plain
       :lines="introLines"
       :actions="introActions"
