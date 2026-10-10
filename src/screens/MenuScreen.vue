@@ -22,6 +22,7 @@ const sizeOption = () => SIZE_OPTIONS.find((o) => o.id === props.settings.size) 
     <header class="title">
       <h1 class="rise" style="animation-delay: 0ms">PuzzleC</h1>
       <div class="rule rise" style="animation-delay: 80ms"></div>
+      <p class="hint">{{ t('menu.portrait') }}</p>
     </header>
 
     <div class="bottom">
@@ -198,5 +199,57 @@ const sizeOption = () => SIZE_OPTIONS.find((o) => o.id === props.settings.size) 
 
 .foot p {
   margin: 0;
+}
+
+/* 窄屏（近似移动端）：标题与按钮整体居中，并在标题下方提示横屏 / 拉宽窗口 */
+.hint {
+  display: none;
+  width: fit-content;
+  margin: 20px auto 0;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  color: var(--fg-dim);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+}
+
+@media (max-width: 640px) {
+  .menu {
+    align-items: center;
+    justify-content: center;
+    gap: 28px;
+  }
+
+  .title {
+    text-align: center;
+  }
+
+  .rule {
+    margin-inline: auto;
+  }
+
+  .hint {
+    display: block;
+  }
+
+  .bottom {
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 28px;
+  }
+
+  .actions {
+    align-items: center;
+  }
+
+  .item {
+    margin-left: 0;
+    text-align: center;
+  }
+
+  .foot {
+    text-align: center;
+  }
 }
 </style>
