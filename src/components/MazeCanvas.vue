@@ -3,11 +3,9 @@ import { onMounted, onUnmounted, ref, watch } from 'vue'
 import type { Level, Vec2 } from '../types'
 import { computeVisibility, createVisibility, isVisible } from '../game/visibility'
 import { PLAYER_R } from '../game/collision'
+import { addLitWalls, wallGradient, wallLineWidth } from '../render/walls'
 
 const props = defineProps<{ level: Level; radius: number; animations: boolean }>()
-
-/** 墙线亮度档数（同一档的线段合并为一次 stroke） */
-const LEVELS = 16
 
 const canvasRef = ref<HTMLCanvasElement | null>(null)
 
@@ -95,30 +93,17 @@ function renderFrame(now: number, dt: number, player: Vec2): void {
   c.fillRect(-tile, -tile, worldW + 2 * tile, worldH + 2 * tile)
   c.restore()
 
-  // 墙线：只画可见墙段，亮度由线段中点到玩家的距离决定
+  // 墙体：有厚度的实体墙（圆角端 / 连接），亮度随距玩家的距离由径向渐变连续衰减
   c.save()
   c.translate(ox, oy)
-  c.lineWidth = Math.max(1, tile * 0.07)
-  const lit = vis.lit
-  for (let b = 1; b < LEVELS; b++) {
-    const v = Math.round(255 * 0.95 * (b / (LEVELS - 1)))
-    c.strokeStyle = `rgb(${v},${v},${v})`
-    c.beginPath()
-    for (let i = 0; i < lit.length; i += 4) {
-      const x0 = lit[i]
-      const y0 = lit[i + 1]
-      const x1 = lit[i + 2]
-      const y1 = lit[i + 3]
-      const d = Math.hypot((x0 + x1) / 2 - player.x, (y0 + y1) / 2 - player.y)
-      const p = 1 - d / props.radius
-      if (p <= 0) continue
-      if (Math.round(Math.pow(p, 0.8) * (LEVELS - 1)) !== b) continue
-      c.moveTo((x0 + 0.5) * tile, (y0 + 0.5) * tile)
-      c.lineTo((x1 + 0.5) * tile, (y1 + 0.5) * tile)
-    }
-    c.stroke()
-  }
-
+  c.lineCap = 'round'
+  c.lineJoin = 'round'
+  c.lineWidth = wallLineWidth(tile)
+  c.strokeStyle = wallGradient(c, pxw, pyw, R)
+  c.beginPath()
+  addLitWalls(c, vis.lit, tile)
+  c.stroke()
+  c.restore()
   if (isVisible(level, player, level.goal, props.radius)) {
     const dGoal = Math.hypot(level.goal.x - player.x, level.goal.y - player.y)
     const gl = Math.max(0, 1 - dGoal / props.radius)

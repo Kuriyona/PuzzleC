@@ -3,6 +3,7 @@ import { onMounted, onUnmounted, ref, watch } from 'vue'
 import type { Level, Vec2 } from '../types'
 import { sampleTrail } from '../game/trail'
 import { PLAYER_R } from '../game/collision'
+import { addLevelWalls, wallLineWidth } from '../render/walls'
 
 const props = defineProps<{ level: Level; points: number[]; times: number[] }>()
 
@@ -38,37 +39,21 @@ function renderFrame(ms: number): void {
   c.fillStyle = '#000'
   c.fillRect(0, 0, side, side)
 
-  const margin = Math.max(2, side * 0.012)
+  const margin = Math.max(3, side * 0.015)
   const tile = Math.min((side - margin * 2) / level.cols, (side - margin * 2) / level.rows)
   const ox = (side - level.cols * tile) / 2
   const oy = (side - level.rows * tile) / 2
 
   c.save()
   c.translate(ox, oy)
-  c.lineWidth = Math.max(1, tile * 0.07)
   c.lineCap = 'round'
   c.lineJoin = 'round'
+  c.lineWidth = wallLineWidth(tile)
 
-  // 全部墙段（连续坐标 c → 像素 (c + 0.5) * tile；墙线索引 k 落在像素 k * tile）
-  const { cols, rows, vWalls, hWalls } = level
+  // 全部墙段：与游戏内一致的实体墙几何（连续坐标 c → 像素 (c + 0.5) * tile）
   c.strokeStyle = 'rgba(255,255,255,0.55)'
   c.beginPath()
-  for (let k = 0; k <= cols; k++) {
-    const x = k * tile
-    for (let y = 0; y < rows; y++) {
-      if (vWalls[y * (cols + 1) + k] !== 1) continue
-      c.moveTo(x, y * tile)
-      c.lineTo(x, (y + 1) * tile)
-    }
-  }
-  for (let k = 0; k <= rows; k++) {
-    const y = k * tile
-    for (let x = 0; x < cols; x++) {
-      if (hWalls[k * cols + x] !== 1) continue
-      c.moveTo(x * tile, y)
-      c.lineTo((x + 1) * tile, y)
-    }
-  }
+  addLevelWalls(c, level, tile)
   c.stroke()
 
   const n = times.length
