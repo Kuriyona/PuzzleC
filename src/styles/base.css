@@ -1,0 +1,111 @@
+:root {
+  --bg: #000;
+  --fg: #ededed;
+  --fg-dim: #8a8a8a;
+  --fg-faint: #4a4a4a;
+  --line: #262626;
+  --panel: #0a0a0a;
+  --inv-bg: #ededed;
+  --inv-fg: #000;
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --dur: 220ms;
+  --dur-fast: 120ms;
+  --font-ui: 'Inter', 'Segoe UI', 'Noto Sans SC', system-ui, sans-serif;
+  --font-mono: ui-monospace, 'SFMono-Regular', Consolas, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-ui);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+/* 反转 hover 统一规则：所有可点元素都套 .interactive */
+.interactive {
+  background: transparent;
+  color: var(--fg);
+  border: 1px solid var(--line);
+  transition:
+    background var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    transform var(--dur-fast) var(--ease);
+}
+
+.interactive:hover,
+.interactive:focus-visible {
+  background: var(--inv-bg);
+  color: var(--inv-fg);
+  border-color: var(--inv-bg);
+  outline: none;
+}
+
+.interactive:active {
+  transform: translateY(1px);
+}
+
+.interactive.is-active {
+  background: var(--inv-bg);
+  color: var(--inv-fg);
+  border-color: var(--inv-bg);
+}
+
+.no-anim *,
+.no-anim *::before,
+.no-anim *::after {
+  transition: none !important;
+  animation: none !important;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.rise {
+  animation: rise 420ms var(--ease) both;
+}
+
+.screen-enter-active,
+.screen-leave-active {
+  transition:
+    opacity var(--dur) var(--ease),
+    transform var(--dur) var(--ease);
+}
+
+.screen-enter-from {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.screen-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
