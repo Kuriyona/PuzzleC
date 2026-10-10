@@ -9,11 +9,10 @@ import {
   saveSettings,
   subscribeSystemScheme,
 } from './game/settings'
-import { LOCALE_TAGS, translate } from './i18n/messages'
-import type { TranslateFn } from './i18n/useI18n'
+import { LOCALE_TAGS } from './i18n/messages'
 import { provideLocale } from './i18n/useI18n'
 import { randomSeed } from './game/rng'
-import OverlayPanel from './components/OverlayPanel.vue'
+import IntroScreen from './screens/IntroScreen.vue'
 import MenuScreen from './screens/MenuScreen.vue'
 import SettingsScreen from './screens/SettingsScreen.vue'
 import GameScreen from './screens/GameScreen.vue'
@@ -35,8 +34,6 @@ watch(settings, () => saveSettings(settings.value), { deep: true })
 // 界面语言：注入给所有后代组件；同时同步 <html lang> 让浏览器选对字体与断行规则
 const locale = computed<LocaleId>(() => settings.value.locale)
 provideLocale(locale)
-// App 自身是 provide 的源头，不能靠 inject 拿翻译（inject 只看父级 provides），直接调 translate
-const t: TranslateFn = (key, params) => translate(locale.value, key, params)
 watch(
   locale,
   (value) => (document.documentElement.lang = LOCALE_TAGS[value]),
@@ -60,38 +57,13 @@ const mazeTheme = computed<ThemeId>(() =>
   settings.value.mazeTheme === 'ui' ? uiTheme.value : settings.value.mazeTheme,
 )
 
-// 首次开始游戏时的主题引导：选一次即记档，之后只在设置里改
+// 首次打开时的引导（语言 / 欢迎 / 介绍 / 主题）：走完才记档，中途刷新会重来
 const introSeen = ref(loadIntroSeen())
-const askingIntro = ref(false)
-const introLines = computed(() => [t('intro.line')])
-const introActions = computed(() => [
-  {
-    label: t('intro.dark'),
-    hint: t('intro.darkHint'),
-    primary: true,
-    onClick: () => chooseMazeTheme('dark'),
-  },
-  {
-    label: t('intro.light'),
-    hint: t('intro.lightHint'),
-    onClick: () => chooseMazeTheme('light'),
-  },
-])
 
-function chooseMazeTheme(theme: ThemeId): void {
-  settings.value = { ...settings.value, mazeTheme: theme }
+function finishIntro(): void {
   markIntroSeen()
   introSeen.value = true
-  askingIntro.value = false
-  beginGame()
-}
-
-function startGame(): void {
-  if (!introSeen.value) {
-    askingIntro.value = true
-    return
-  }
-  beginGame()
+  // 引导只负责设置与介绍：走完停在主界面（screen 本就是 'menu'），由玩家自己按开始游戏
 }
 
 function beginGame(): void {
@@ -123,10 +95,16 @@ function openEditor(id: string | null): void {
     :class="{ 'no-anim': !settings.animations, 'theme-light': uiTheme === 'light' }"
   >
     <Transition name="screen" mode="out-in">
+      <IntroScreen
+        v-if="!introSeen"
+        key="intro"
+        v-model="settings"
+        @finish="finishIntro"
+      />
       <MenuScreen
-        v-if="screen === 'menu'"
+        v-else-if="screen === 'menu'"
         :settings="settings"
-        @start="startGame"
+        @start="beginGame"
         @maps="screen = 'maps'"
         @editor="openEditor(null)"
         @settings="screen = 'settings'"
@@ -159,14 +137,6 @@ function openEditor(id: string | null): void {
         @back="screen = 'menu'"
       />
     </Transition>
-
-    <OverlayPanel
-      v-if="askingIntro"
-      :title="t('intro.title')"
-      plain
-      :lines="introLines"
-      :actions="introActions"
-    />
   </div>
 </template>
 

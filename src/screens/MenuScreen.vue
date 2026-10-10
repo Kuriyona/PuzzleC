@@ -67,7 +67,6 @@ const sizeOption = () => SIZE_OPTIONS.find((o) => o.id === props.settings.size) 
       </nav>
 
       <footer class="foot rise" style="animation-delay: 510ms">
-        <p>{{ t('menu.controls') }}</p>
         <p>
           {{
             t('menu.stats', {
