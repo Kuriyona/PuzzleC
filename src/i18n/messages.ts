@@ -151,6 +151,7 @@ const zhHans = {
   'game.won': '通关',
   'game.hint': 'ESC 暂停 · R 重开',
   'game.hint.gamepad': '摇杆 / 十字键移动 · Select 暂停 · X 重开',
+  'game.hint.touch': '拖动左下角摇杆移动',
   // 手柄
   'gamepad.editorTitle': '手柄不支持编辑器',
   'gamepad.editorLine': '地图编辑器需要鼠标与键盘操作，手柄无法编辑地图。手柄可用于游玩与菜单导航。',
@@ -326,6 +327,7 @@ export const MESSAGES: Record<LocaleId, Catalogue> = {
     'game.won': '通關',
     'game.hint': 'ESC 暫停 · R 重開',
     'game.hint.gamepad': '搖桿 / 十字鍵移動 · Select 暫停 · X 重開',
+    'game.hint.touch': '拖動左下角搖桿移動',
     // 手柄
     'gamepad.editorTitle': '手柄不支援編輯器',
     'gamepad.editorLine': '地圖編輯器需要滑鼠與鍵盤操作，手柄無法編輯地圖。手柄可用於遊玩與選單導覽。',
@@ -489,6 +491,7 @@ export const MESSAGES: Record<LocaleId, Catalogue> = {
     'game.won': 'Cleared',
     'game.hint': 'ESC to pause · R to restart',
     'game.hint.gamepad': 'Stick / D-pad to move · Select to pause · X to restart',
+    'game.hint.touch': 'Drag the stick at the bottom-left to move',
     // 手柄
     'gamepad.editorTitle': 'Gamepad not supported here',
     'gamepad.editorLine':
@@ -653,6 +656,7 @@ export const MESSAGES: Record<LocaleId, Catalogue> = {
     'game.won': 'クリア',
     'game.hint': 'ESC で一時停止 · R でやり直し',
     'game.hint.gamepad': 'スティック / 十字キーで移動 · Select で一時停止 · X でやり直し',
+    'game.hint.touch': '左下のスティックをドラッグして移動',
     // 手柄
     'gamepad.editorTitle': 'エディターは非対応',
     'gamepad.editorLine':

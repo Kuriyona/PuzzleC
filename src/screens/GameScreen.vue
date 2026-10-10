@@ -14,6 +14,7 @@ import MazeCanvas from '../components/MazeCanvas.vue'
 import HudBar from '../components/HudBar.vue'
 import OverlayPanel from '../components/OverlayPanel.vue'
 import ReviewMap from '../components/ReviewMap.vue'
+import TouchStick from '../components/TouchStick.vue'
 
 const props = defineProps<{
   settings: Settings
@@ -33,6 +34,7 @@ const emit = defineEmits<{ next: []; exit: [] }>()
 const t = useT()
 const gamepad = useGamepad()
 const gamepadMode = gamepad.mode
+const touchMode = gamepad.touch
 
 const SPEED = 3.2 // 格/秒
 const ACCEL_TAU = 0.06 // 秒
@@ -293,6 +295,15 @@ watch(
   () => resetLevel(),
 )
 
+// ---- 触屏 ----
+
+/** 触屏模式且正在游玩时显示左下角虚拟摇杆 */
+const showStick = computed(() => touchMode.value && status.value === 'playing')
+
+const hintKey = computed(() =>
+  touchMode.value ? 'game.hint.touch' : gamepadMode.value ? 'game.hint.gamepad' : 'game.hint',
+)
+
 // ---- 手柄 ----
 
 // 回顾界面：播放/暂停、倍速、底部操作可手柄选择（暂停/胜利浮层由 OverlayPanel 置顶接管）
@@ -458,7 +469,8 @@ onUnmounted(() => {
           @back="emit('exit')"
         />
       </div>
-      <p class="hint">{{ t(gamepadMode ? 'game.hint.gamepad' : 'game.hint') }}</p>
+      <TouchStick v-if="showStick" />
+      <p class="hint">{{ t(hintKey) }}</p>
     </template>
   </section>
 </template>

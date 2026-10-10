@@ -74,7 +74,7 @@ function axisValue(value: number): number {
   return Math.sign(value) * Math.min(1, scaled)
 }
 
-function clampUnit(value: number): number {
+export function clampUnit(value: number): number {
   return value < -1 ? -1 : value > 1 ? 1 : value
 }
 

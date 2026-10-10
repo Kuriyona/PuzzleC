@@ -1,6 +1,6 @@
 import { inject, onMounted, onUnmounted, provide, readonly, ref } from 'vue'
 import type { InjectionKey, Ref } from 'vue'
-import { createPadTracker, emptyPadSnapshot, readPad } from './gamepad'
+import { clampUnit, createPadTracker, emptyPadSnapshot, readPad } from './gamepad'
 import type { NavDir, PadEvents, PadSnapshot } from './gamepad'
 
 /** 手柄事件：方向导航 / 确认(A) / 返回(B) / 次要动作(X) / 主要动作(Start) / 暂停(Select) */
@@ -25,8 +25,12 @@ export interface GamepadContext {
   mode: Readonly<Ref<boolean>>
   /** 是否有手柄接入 */
   connected: Readonly<Ref<boolean>>
-  /** 每帧刷新的合成轴；普通对象，渲染热路径直接读，不进入响应式 */
+  /** 最近一次输入是否来自触屏；与手柄模式互斥 */
+  touch: Readonly<Ref<boolean>>
+  /** 每帧刷新的合成轴（手柄 + 虚拟摇杆）；普通对象，渲染热路径直接读，不进入响应式 */
   axes: GamepadAxes
+  /** 虚拟摇杆写入轴向；随后每帧与手柄轴一起合成到 axes */
+  setTouchAxes(x: number, y: number): void
   /** 注册事件处理器（后注册的在上层，先收到事件）；返回注销函数 */
   onEvent(handler: PadHandler): () => void
   /**
@@ -65,14 +69,18 @@ function hasActivity(snapshot: PadSnapshot): boolean {
 }
 
 /**
- * 建立全局手柄上下文并在 App 里 provide。
+ * 建立全局物理输入上下文并在 App 里 provide：手柄 + 触屏。
  * 用一个常驻 rAF 轮询 `navigator.getGamepads()`（浏览器不会派发按键事件，必须轮询）；
- * 键盘 / 鼠标一动就退出「手柄模式」，据此切换焦点环与按键标志的显示。
+ * 「手柄模式」与「触屏模式」互斥，最近一次输入来自哪边就进哪边，
+ * 键盘 / 鼠标一动则两个都退出。
  */
 export function provideGamepad(): GamepadContext {
   const mode = ref(false)
   const connected = ref(false)
+  const touch = ref(false)
   const axes: GamepadAxes = { x: 0, y: 0 }
+  /** 虚拟摇杆写入的轴向（普通对象，逐帧合并，不进入响应式） */
+  const touchVector: GamepadAxes = { x: 0, y: 0 }
   const handlers: PadHandler[] = []
   const tracker = createPadTracker()
   const snapshot = emptyPadSnapshot()
@@ -100,11 +108,27 @@ export function provideGamepad(): GamepadContext {
   function poll(now: number): void {
     rafId = window.requestAnimationFrame(poll)
     readPad(firstPad(), snapshot)
-    axes.x = snapshot.x
-    axes.y = snapshot.y
     if (snapshot.connected) connected.value = true
-    if (snapshot.connected && hasActivity(snapshot)) mode.value = true
+    // 先结算模式切换（可能清零摇杆轴向），再合成这一帧的轴，避免残留一帧
+    if (snapshot.connected && hasActivity(snapshot)) enterGamepadMode()
+    axes.x = clampUnit(snapshot.x + touchVector.x)
+    axes.y = clampUnit(snapshot.y + touchVector.y)
     dispatch(tracker.update(snapshot, now))
+  }
+
+  /** 手柄一动手就进手柄模式并退出触屏模式 */
+  function enterGamepadMode(): void {
+    mode.value = true
+    if (touch.value) {
+      touch.value = false
+      touchVector.x = 0
+      touchVector.y = 0
+    }
+  }
+
+  function clearTouch(): void {
+    touchVector.x = 0
+    touchVector.y = 0
   }
 
   const onConnected = (): void => {
@@ -113,31 +137,43 @@ export function provideGamepad(): GamepadContext {
   const onDisconnected = (): void => {
     if (!firstPad()) connected.value = false
   }
-  /** 键盘 / 鼠标一动作就退出「手柄模式」（焦点环与按键标志随之隐藏） */
-  const onHumanInput = (): void => {
+  /** 触屏 / 鼠标 / 触控笔按下：触屏进触屏模式，其余（含键盘）一律退出两套模式 */
+  const onPointerDown = (event: PointerEvent): void => {
     mode.value = false
+    touch.value = event.pointerType === 'touch'
+    if (!touch.value) clearTouch()
+  }
+  const onKeyDown = (): void => {
+    mode.value = false
+    touch.value = false
+    clearTouch()
   }
 
   onMounted(() => {
     rafId = window.requestAnimationFrame(poll)
     window.addEventListener('gamepadconnected', onConnected)
     window.addEventListener('gamepaddisconnected', onDisconnected)
-    window.addEventListener('keydown', onHumanInput)
-    window.addEventListener('mousedown', onHumanInput)
+    window.addEventListener('keydown', onKeyDown)
+    window.addEventListener('pointerdown', onPointerDown)
   })
 
   onUnmounted(() => {
     window.cancelAnimationFrame(rafId)
     window.removeEventListener('gamepadconnected', onConnected)
     window.removeEventListener('gamepaddisconnected', onDisconnected)
-    window.removeEventListener('keydown', onHumanInput)
-    window.removeEventListener('mousedown', onHumanInput)
+    window.removeEventListener('keydown', onKeyDown)
+    window.removeEventListener('pointerdown', onPointerDown)
   })
 
   const context: GamepadContext = {
     mode: readonly(mode),
     connected: readonly(connected),
+    touch: readonly(touch),
     axes,
+    setTouchAxes(x, y) {
+      touchVector.x = x
+      touchVector.y = y
+    },
     navTop: readonly(navTop),
     onEvent(handler) {
       handlers.push(handler)
