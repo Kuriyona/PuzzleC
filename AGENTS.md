@@ -8,7 +8,7 @@ Single-package Vue 3 + Vite SPA: a keyboard-driven "light point" maze game. The 
 procedurally generated maze; a geometric visibility solver decides what is lit, and everything outside the lit
 region is pure black with radial brightness falloff.
 
-Hard rules come from `task.md` (the only product doc, Chinese, 7 lines):
+Hard rules from the original product brief:
 
 - Tooling is mandated: pnpm + Vite + Vue ("使用 pnpm Vite Vue").
 - Start menu + in-game settings screen, with animation.
@@ -17,8 +17,8 @@ Hard rules come from `task.md` (the only product doc, Chinese, 7 lines):
 - Visible range computed from player light point vs. maze walls; outside it is pure black.
 - Brightness inside the visible range decays with distance (brightest at player, very dim at the far edge).
 
-`task.md` states no acceptance criteria, versions, or numeric parameters; movement feel, radius tiers and
-HUD metrics were chosen during implementation (see the approved plan, not in-repo).
+The brief states no acceptance criteria, versions, or numeric parameters; movement feel, radius tiers and
+HUD metrics were chosen during implementation.
 
 ## Architecture & Data Flow
 
@@ -149,7 +149,6 @@ Gotcha: `body { color: var(--fg); background: var(--bg) }` only ever sees the `:
 | `src/screens/GameScreen.vue` | Only rAF loop, input handling, physics, trail recording, playback, win/pause/review transitions |
 | `index.html` | `#app` mount point + module script `/src/main.ts` |
 | `tsconfig.json`, `vite.config.ts`, `vitest.config.ts` | Strict-TS constraints, build target, test include pattern |
-| `task.md` | Original product brief (constraints) |
 
 Critical paint-order gotcha: in `MazeCanvas.renderFrame` everything (fan fill, walls, goal, player) is drawn inside **one** `c.save(); c.translate(ox, oy)` world-space block, closed by the final `c.restore()`. Do **not** re-apply `ox/oy` inside it, and never drop that outer transform: a light point drawn without the camera offset stays at raw world pixels while the camera scrolls, so it appears to drift away from the (correctly centred) lit area. The fan **clip** keeps its own nested `save()/restore()` (`MazeCanvas.vue:90-102`) — wall strokes sit exactly on the clip boundary, so leaving the clip active clips half of every wall line.
 
