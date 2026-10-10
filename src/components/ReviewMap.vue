@@ -1,13 +1,21 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, watch } from 'vue'
-import type { Level, Vec2 } from '../types'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import type { Level, ThemeId, Vec2 } from '../types'
 import { sampleTrail } from '../game/trail'
 import { PLAYER_R } from '../game/collision'
 import { addLevelWalls, wallLineWidth } from '../render/walls'
+import { CANVAS_PALETTES, inkRgba } from '../render/palette'
 
-const props = defineProps<{ level: Level; points: number[]; times: number[] }>()
+const props = defineProps<{
+  level: Level
+  points: number[]
+  times: number[]
+  theme: ThemeId
+}>()
 
 const canvasRef = ref<HTMLCanvasElement | null>(null)
+/** 元素底色用迷宫主题的 paper（不是 --bg，那是 UI 主题）：首帧之前不留异色底 */
+const paper = computed(() => CANVAS_PALETTES[props.theme].paper)
 
 let ctx: CanvasRenderingContext2D | null = null
 let side = 0
@@ -34,9 +42,10 @@ function renderFrame(ms: number): void {
   const c = ctx
   if (!cvs || !c || side <= 0) return
   const { level, points, times } = props
+  const pal = CANVAS_PALETTES[props.theme]
 
   c.setTransform(dpr, 0, 0, dpr, 0, 0)
-  c.fillStyle = '#000'
+  c.fillStyle = pal.paper
   c.fillRect(0, 0, side, side)
 
   const margin = Math.max(3, side * 0.015)
@@ -51,7 +60,7 @@ function renderFrame(ms: number): void {
   c.lineWidth = wallLineWidth(tile)
 
   // 全部墙段：与游戏内一致的实体墙几何（连续坐标 c → 像素 (c + 0.5) * tile）
-  c.strokeStyle = 'rgba(255,255,255,0.55)'
+  c.strokeStyle = inkRgba(pal.ink, 0.55)
   c.beginPath()
   addLevelWalls(c, level, tile)
   c.stroke()
@@ -59,7 +68,7 @@ function renderFrame(ms: number): void {
   const n = times.length
   if (n > 0) {
     // 完整轨迹（淡）
-    c.strokeStyle = 'rgba(255,255,255,0.16)'
+    c.strokeStyle = inkRgba(pal.ink, 0.16)
     c.lineWidth = Math.max(1.5, tile * 0.1)
     c.beginPath()
     c.moveTo((points[0] + 0.5) * tile, (points[1] + 0.5) * tile)
@@ -70,7 +79,7 @@ function renderFrame(ms: number): void {
 
     // 已走过的部分（亮）+ 末端插值点
     const idx = sampleTrail(points, times, ms, dot)
-    c.strokeStyle = 'rgba(255,255,255,0.9)'
+    c.strokeStyle = inkRgba(pal.ink, 0.9)
     c.beginPath()
     c.moveTo((points[0] + 0.5) * tile, (points[1] + 0.5) * tile)
     for (let i = 1; i <= idx; i++) {
@@ -80,14 +89,14 @@ function renderFrame(ms: number): void {
     c.stroke()
 
     // 光点
-    c.fillStyle = '#fff'
+    c.fillStyle = inkRgba(pal.ink, 1)
     c.beginPath()
     c.arc((dot.x + 0.5) * tile, (dot.y + 0.5) * tile, tile * PLAYER_R, 0, Math.PI * 2)
     c.fill()
   }
 
   // 起点：空心小圆
-  c.strokeStyle = 'rgba(255,255,255,0.6)'
+  c.strokeStyle = inkRgba(pal.ink, 0.6)
   c.lineWidth = Math.max(1, tile * 0.06)
   c.beginPath()
   c.arc((level.start.x + 0.5) * tile, (level.start.y + 0.5) * tile, tile * 0.16, 0, Math.PI * 2)
@@ -98,7 +107,7 @@ function renderFrame(ms: number): void {
   c.translate((level.goal.x + 0.5) * tile, (level.goal.y + 0.5) * tile)
   c.rotate(Math.PI / 4)
   const r = tile * 0.28
-  c.strokeStyle = 'rgba(255,255,255,0.95)'
+  c.strokeStyle = inkRgba(pal.ink, 0.95)
   c.lineWidth = Math.max(1.5, tile * 0.07)
   c.strokeRect(-r * 0.8, -r * 0.8, r * 1.6, r * 1.6)
   c.restore()
@@ -135,7 +144,12 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <canvas ref="canvasRef" class="overview" aria-label="迷宫全图与轨迹回放"></canvas>
+  <canvas
+    ref="canvasRef"
+    class="overview"
+    :style="{ background: paper }"
+    aria-label="迷宫全图与轨迹回放"
+  ></canvas>
 </template>
 
 <style scoped>
@@ -143,7 +157,6 @@ onUnmounted(() => {
   display: block;
   width: min(92vw, 58vh, 820px);
   height: min(92vw, 58vh, 820px);
-  background: #000;
   border: 1px solid var(--line);
 }
 </style>

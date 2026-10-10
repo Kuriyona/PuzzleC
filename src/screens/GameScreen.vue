@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import type { GameStatus, Level, Settings, Vec2 } from '../types'
+import type { GameStatus, Level, Settings, ThemeId, Vec2 } from '../types'
 import { SIZE_OPTIONS, generateMaze } from '../game/maze'
 import { radiusValue, sizeCells } from '../game/settings'
 import { PLAYER_R, moveWithCollision } from '../game/collision'
@@ -11,7 +11,13 @@ import HudBar from '../components/HudBar.vue'
 import OverlayPanel from '../components/OverlayPanel.vue'
 import ReviewMap from '../components/ReviewMap.vue'
 
-const props = defineProps<{ settings: Settings; seed: number; levelIndex: number }>()
+const props = defineProps<{
+  settings: Settings
+  seed: number
+  levelIndex: number
+  /** 已解析的迷宫主题（App 把 ui 跟随解析成实际值） */
+  mazeTheme: ThemeId
+}>()
 const emit = defineEmits<{ next: []; exit: [] }>()
 
 const SPEED = 3.2 // 格/秒
@@ -192,13 +198,13 @@ function formatTime(ms: number): string {
 }
 
 const pausedActions = computed(() => [
-  { label: '继续', primary: true, onClick: resumeGame },
+  { label: '继续', active: true, primary: true, onClick: resumeGame },
   { label: '重开本关', onClick: resetLevel },
   { label: '返回菜单', onClick: () => emit('exit') },
 ])
 
 const wonActions = computed(() => [
-  { label: '查看回顾', primary: true, onClick: openReview },
+  { label: '查看回顾', active: true, primary: true, onClick: openReview },
   { label: '下一关', onClick: () => emit('next') },
   { label: '返回菜单', onClick: () => emit('exit') },
 ])
@@ -288,6 +294,7 @@ onUnmounted(() => {
         :level="level"
         :points="trail.points"
         :times="trail.times"
+        :theme="mazeTheme"
       />
       <div class="playback rise" style="animation-delay: 200ms">
         <button class="interactive act" @click="toggleReviewPlay">
@@ -342,6 +349,7 @@ onUnmounted(() => {
           :level="level"
           :radius="radius"
           :animations="settings.animations"
+          :theme="mazeTheme"
         />
         <OverlayPanel
           v-if="status === 'paused'"

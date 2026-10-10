@@ -16,31 +16,39 @@ const sizeOption = () => SIZE_OPTIONS.find((o) => o.id === props.settings.size) 
       <div class="orb"></div>
     </div>
 
-    <div class="content">
-      <header class="title">
-        <h1 class="rise" style="animation-delay: 0ms">光点迷宫</h1>
-        <p class="sub rise" style="animation-delay: 80ms">LUMEN MAZE</p>
-        <div class="rule rise" style="animation-delay: 160ms"></div>
-      </header>
+    <header class="title">
+      <h1 class="rise" style="animation-delay: 0ms">PuzzleC</h1>
+      <div class="rule rise" style="animation-delay: 80ms"></div>
+    </header>
 
+    <div class="bottom">
       <nav class="actions">
         <button
           class="interactive item rise"
-          style="animation-delay: 240ms"
+          style="animation-delay: 160ms"
           @click="$emit('start')"
         >
           开始游戏
         </button>
         <button
           class="interactive item rise"
-          style="animation-delay: 310ms"
+          style="animation-delay: 230ms"
           @click="$emit('settings')"
         >
           设置
         </button>
+        <a
+          class="interactive item rise"
+          style="animation-delay: 300ms"
+          href="https://github.com/Kuriyona/PuzzleC"
+          target="_blank"
+          rel="noreferrer"
+        >
+          Github
+        </a>
       </nav>
 
-      <footer class="foot rise" style="animation-delay: 380ms">
+      <footer class="foot rise" style="animation-delay: 370ms">
         <p>方向键 / WASD 移动 · ESC 暂停 · 抵达白色菱形即通关</p>
         <p>
           迷宫 {{ sizeOption().hint }} · 视野 {{ radiusValue(settings.radius) }} · 动画
@@ -52,15 +60,24 @@ const sizeOption = () => SIZE_OPTIONS.find((o) => o.id === props.settings.size) 
 </template>
 
 <style scoped>
+/* 主界面跟随界面主题（.app 上的 .theme-light / :root 深色），自身不再固定配色 */
 .menu {
-  position: relative;
-  width: min(92vw, 520px);
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 32px;
+  padding: clamp(28px, 6vh, 64px) clamp(28px, 5vw, 72px);
+  background: var(--bg);
+  color: var(--fg);
   isolation: isolate;
+  overflow: hidden;
 }
 
 .backdrop {
   position: absolute;
-  inset: -24px;
+  inset: 0;
   pointer-events: none;
   overflow: hidden;
   z-index: -1;
@@ -69,10 +86,10 @@ const sizeOption = () => SIZE_OPTIONS.find((o) => o.id === props.settings.size) 
 .dots {
   position: absolute;
   inset: 0;
-  background-image: radial-gradient(circle, #171717 1px, transparent 1px);
+  background-image: radial-gradient(circle, var(--line) 1px, transparent 1px);
   background-size: 26px 26px;
-  -webkit-mask-image: radial-gradient(circle at 50% 42%, #000 0 28%, transparent 72%);
-  mask-image: radial-gradient(circle at 50% 42%, #000 0 28%, transparent 72%);
+  -webkit-mask-image: radial-gradient(circle at 18% 22%, #000 0 22%, transparent 68%);
+  mask-image: radial-gradient(circle at 18% 22%, #000 0 22%, transparent 68%);
   animation: drift 24s linear infinite;
 }
 
@@ -83,7 +100,7 @@ const sizeOption = () => SIZE_OPTIONS.find((o) => o.id === props.settings.size) 
   width: 520px;
   height: 520px;
   margin: -260px 0 0 -260px;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.06), transparent 70%);
+  background: radial-gradient(circle, rgba(128, 128, 128, 0.1), transparent 70%);
   animation: breathe 16s ease-in-out infinite alternate;
 }
 
@@ -102,44 +119,47 @@ const sizeOption = () => SIZE_OPTIONS.find((o) => o.id === props.settings.size) 
   }
 }
 
-.content {
-  display: flex;
-  flex-direction: column;
-  gap: 34px;
-}
-
 .title h1 {
   margin: 0;
   font-weight: 200;
   letter-spacing: 0.34em;
-  font-size: clamp(38px, 7vw, 64px);
+  font-size: clamp(34px, 6vw, 56px);
   text-indent: 0.34em;
 }
 
-.sub {
-  margin: 10px 0 0;
-  font-size: 11px;
-  letter-spacing: 0.5em;
-  color: var(--fg-faint);
+.rule {
+  margin-top: 20px;
+  width: 76px;
+  height: 1px;
+  background: var(--fg);
 }
 
-.rule {
-  margin-top: 22px;
-  height: 1px;
-  background: var(--line);
+.bottom {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 32px;
+  flex-wrap: wrap;
 }
 
 .actions {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  align-items: flex-start;
+  gap: 4px;
 }
 
+/* 文本与标题左对齐，hover 色块向左溢出，保持“纯净文字按钮”观感 */
 .item {
-  padding: 14px 18px;
-  text-align: left;
-  letter-spacing: 0.16em;
+  display: block;
+  width: fit-content;
+  padding: 12px 16px;
+  margin-left: -16px;
+  border-color: transparent;
   font-size: 15px;
+  letter-spacing: 0.16em;
+  text-align: left;
+  text-decoration: none;
 }
 
 .item:hover,
@@ -148,11 +168,10 @@ const sizeOption = () => SIZE_OPTIONS.find((o) => o.id === props.settings.size) 
 }
 
 .foot {
-  border-top: 1px solid var(--line);
-  padding-top: 16px;
   color: var(--fg-dim);
   font-size: 12px;
   line-height: 1.9;
+  text-align: right;
 }
 
 .foot p {

@@ -101,18 +101,22 @@ describe('addLitWalls', () => {
 })
 
 describe('wallGradient', () => {
-  it('渐变从亮心连续衰减到 0，无跳动', () => {
-    const { ctx, stops } = gradientRecorder()
-    wallGradient(ctx, 0, 0, 100)
-    expect(stops[0].offset).toBe(0)
-    expect(alphaOf(stops[0].color)).toBeCloseTo(0.95, 9)
-    expect(stops[stops.length - 1].offset).toBe(1)
-    expect(alphaOf(stops[stops.length - 1].color)).toBe(0)
-    for (let i = 1; i < stops.length; i++) {
-      expect(stops[i].offset).toBeGreaterThan(stops[i - 1].offset)
-      const a = alphaOf(stops[i].color)
-      expect(Number.isNaN(a)).toBe(false)
-      expect(a).toBeLessThanOrEqual(alphaOf(stops[i - 1].color))
+  it('渐变从亮心连续衰减到 0，无跳动（深浅两套墨色都走通道）', () => {
+    for (const ink of ['255,255,255', '0,0,0']) {
+      const { ctx, stops } = gradientRecorder()
+      wallGradient(ctx, 0, 0, 100, ink)
+      expect(stops[0].offset).toBe(0)
+      expect(alphaOf(stops[0].color)).toBeCloseTo(0.95, 9)
+      expect(stops[stops.length - 1].offset).toBe(1)
+      expect(alphaOf(stops[stops.length - 1].color)).toBe(0)
+      for (let i = 0; i < stops.length; i++) {
+        expect(stops[i].color.startsWith(`rgba(${ink},`)).toBe(true)
+        if (i === 0) continue
+        expect(stops[i].offset).toBeGreaterThan(stops[i - 1].offset)
+        const a = alphaOf(stops[i].color)
+        expect(Number.isNaN(a)).toBe(false)
+        expect(a).toBeLessThanOrEqual(alphaOf(stops[i - 1].color))
+      }
     }
   })
 })

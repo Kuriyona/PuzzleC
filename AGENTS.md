@@ -1,6 +1,6 @@
 # Repository Guidelines
 
-Repo root: `@Kuriyona/PuzzleC` (package name `maze-lumen`, UI title 光点迷宫 / Lumen Maze).
+Repo root: `@Kuriyona/PuzzleC` (package name `puzzlec`, UI title PuzzleC).
 
 ## Project Overview
 
@@ -24,22 +24,24 @@ HUD metrics were chosen during implementation (see the approved plan, not in-rep
 
 ```
 main.ts ── createApp(App).mount('#app')                     (imports styles/base.css)
-App.vue  [screen, settings, seed, levelIndex]  watch(settings, deep) -> saveSettings()
+App.vue  [screen, settings, seed, levelIndex, uiTheme, mazeTheme]  watch(settings, deep) -> saveSettings()
   ├─ MenuScreen      props{settings}             emits start, settings
   ├─ SettingsScreen  v-model<Settings>           emits back
-  └─ GameScreen      props{settings,seed,levelIndex}  emits next, exit
+  ├─ OverlayPanel    首次开始游戏的主题引导（plain，选择游玩模式）
+  └─ GameScreen      props{settings,seed,levelIndex,mazeTheme}  emits next, exit
         │   owns: single rAF loop, 250ms HUD timer, window key/listeners, physics, trail recording
         ├─ HudBar       props{levelIndex,sizeHint,radius,distance,elapsedMs,seed} emits pause, restart
-        ├─ MazeCanvas   props{level,radius,animations}  exposes renderFrame(now,dt,pos)
+        ├─ MazeCanvas   props{level,radius,animations,theme}  exposes renderFrame(now,dt,pos)
         ├─ OverlayPanel props{title,lines,actions}      (paused / won overlays)
-        └─ ReviewMap    props{level,points,times}        (won → 全图回顾：按时间回放)
+        └─ ReviewMap    props{level,points,times,theme}  (won → 全图回顾：按时间回放)
 
 src/render/walls.ts —— MazeCanvas 与 ReviewMap 共用的墙体绘制（实体墙几何 + 连续亮度渐变）
+src/render/palette.ts —— Canvas 配色（CANVAS_PALETTES：深色 = 黑底白光 / 浅色 = 白底黑墨）
 ```
 
-- `App.vue` is the only screen state machine; `screen` toggles `menu | settings | game`. `startGame()`/`nextLevel()` mint a new `randomSeed()`; `levelIndex` increments on next level.
+- `App.vue` is the only screen state machine; `screen` toggles `menu | settings | game`. `startGame()`/`nextLevel()` mint a new `randomSeed()`; `levelIndex` increments on next level. It also resolves both theme axes and puts the UI one on its root element (`'theme-light': uiTheme === 'light'`), passing the resolved maze theme down to `GameScreen`; see the theme section below.
 - `GameStatus` = `playing | paused | won | review`; `review` is a GameScreen-internal state (not an `App` screen). Reached only from the win overlay ("查看回顾"); it keeps `level`/`pos`/trail alive and replays the recorded timeline on `ReviewMap` (play/pause, 0.5/1/2/4× speed, draggable seek bar). Playback time `reviewPlayMs` is a plain value advanced in `frame()` (ms * speed, clamped to `reviewDuration`); only the clock/seek-bar read `reviewMs` (ref), so no per-frame reactive state. 下一关/重玩本关/返回菜单 exit it.
-- Exactly **one** `requestAnimationFrame` loop exists, owned by `GameScreen.frame()` (`src/screens/GameScreen.vue:125`). It self-reschedules, computes `dt` (first frame 16ms, capped 50ms), advances physics only when `status === 'playing'`, and calls `canvasRef.value?.renderFrame(now, dt, pos)` unless paused. `MazeCanvas` never owns a loop — it draws on demand.
+- Exactly **one** `requestAnimationFrame` loop exists, owned by `GameScreen.frame()` (`src/screens/GameScreen.vue:142`). It self-reschedules, computes `dt` (first frame 16ms, capped 50ms), advances physics only when `status === 'playing'`, and calls `canvasRef.value?.renderFrame(now, dt, pos)` unless paused. `MazeCanvas` never owns a loop — it draws on demand.
 - Physics per frame: read `pressed` set → camera-relative input axes (diagonal scaled by `Math.SQRT1_2`) → velocity exponential approach (`SPEED=3.2` cells/s, `ACCEL_TAU=0.06s`) → `moveWithCollision` into a reused `next` object → win check within `WIN_R=0.3`.
 - Elapsed time: `performance.now() - startedAt - pausedAccumMs`; HUD refresh is a separate 250ms `setInterval`.
 - Rendering per frame (`MazeCanvas.renderFrame`): measure/DPR → clear → camera clamp + exponential ease → `computeVisibility` → **one world-space `c.save(); c.translate(ox,oy)`** wrapping fan fill, walls, goal and player → clip to the fan polygon and fill a radial gradient → stroke **the visible portion of each wall edge** (see `lit` below) as **thick, round-capped/joined solid walls** whose brightness comes from a radial gradient (`wallGradient`) — continuous falloff, **no brightness tiers** → goal diamond + player dot.
@@ -53,9 +55,9 @@ Level creation: `GameScreen.resetLevel()` calls `generateMaze(cells, cells, prop
 |---|---|
 | `src/game/` | Pure, framework-free game logic: `maze.ts` (generation + wall accessors + BFS), `visibility.ts` (raycast/fan), `collision.ts` (movement resolution), `settings.ts` (options + localStorage), `rng.ts` (seeded PRNG), `trail.ts` (轨迹采样：`createTrail` 记录 `points`+`times`，位移 ≥ `TRAIL_STEP` 才记录；`sampleTrail` 按时间插值) |
 | `src/components/` | Presentational Vue SFCs: canvas renderer, HUD bar, overlay dialog, review map |
-| `src/render/` | Framework-free Canvas 2D helpers shared by the canvases: `walls.ts` (solid-wall geometry, thickness, continuous brightness gradient) |
+| `src/render/` | Framework-free Canvas 2D helpers shared by the canvases: `walls.ts` (solid-wall geometry, thickness, continuous brightness gradient), `palette.ts` (`CanvasPalette`, `CANVAS_PALETTES` per `ThemeId`, `inkRgba`) |
 | `src/screens/` | Screen-level SFCs: menu, settings editor, game loop owner |
-| `src/styles/` | `base.css`: CSS variables, `.interactive` inverted hover, transitions |
+| `src/styles/` | `base.css`: CSS variables, dark `:root` + `.theme-light` palette, `.interactive` inverted hover, transitions |
 | `src/types.ts` | All shared types (no runtime code) |
 | `tests/` | Vitest suites + `helpers.ts` fixtures; mirrors `src/game/` |
 | `dist/` | Build output (gitignored; does exist on disk) |
@@ -100,7 +102,18 @@ There is **no** `lint` or `format` script (see Runtime/Tooling Preferences). `ty
 
 **Vue SFC conventions.** `<script setup lang="ts">`; props via `defineProps<{...}>()`, emits via `defineEmits<{name:[args]}>()`; two-way binding through `defineModel<Settings>({ required: true })` and whole-object replacement (`{ ...model.value, ...patch }`). `defineExpose({ renderFrame })` is the imperative canvas API. Every mutable listener/timer is torn down in `onUnmounted`.
 
-**Style conventions.** UI text and code comments are Chinese (shared vocabulary: 格, 墙段, 连续坐标, 贴墙滑动). Global CSS variables live in `src/styles/base.css` (`--bg`, `--fg`, `--fg-dim`, `--fg-faint`, `--line`, `--panel`, `--inv-bg`, `--inv-fg`, `--ease`, `--dur`, `--font-ui`, `--font-mono`); every clickable element carries the `interactive` class (inverted hover), `.is-active` means inverted, `.rise` is the entrance animation, and `.no-anim` on the App root disables all animation when `settings.animations === false`. Component styles are `scoped`.
+**Style conventions.** UI text and code comments are Chinese (shared vocabulary: 格, 墙段, 连续坐标, 贴墙滑动). Global CSS variables live in `src/styles/base.css` (`--bg`, `--fg`, `--fg-dim`, `--fg-faint`, `--line`, `--panel`, `--inv-bg`, `--inv-fg`, `--scrim`, `--ease`, `--dur`, `--font-ui`, `--font-mono`); every clickable element carries the `interactive` class (inverted hover), `.is-active` means inverted, `.rise` is the entrance animation, and `.no-anim` on the App root disables all animation when `settings.animations === false`. Component styles are `scoped`. `MenuScreen` is a full-viewport panel that **follows the UI theme**: `.menu` is `position: fixed; inset: 0`, takes its surface/ink from the global variables (no local palette), and lays out title top-left / buttons bottom-left with `justify-content: space-between`. Its `.item` only nulls the border (`border-color: transparent`) and bleeds left (`margin-left: -16px`) so button text aligns with the title; the shared `.interactive` hover inversion re-colors itself, and the decorative backdrop uses theme-neutral values (`var(--line)` dots, mid-grey orb) so it works on both surfaces.
+
+**Two independent theme axes** — do not collapse them back into one:
+
+- `Settings.uiTheme` (`light | dark | system`, default **`light`**) resolves through `prefers-color-scheme` into a `ThemeId`; `App.vue` subscribes via `subscribeSystemScheme` (unsubscribed in `onUnmounted`) and the result only toggles `.theme-light` on the App root — every DOM screen follows. `:root` is the dark palette, so dark needs no class.
+- `Settings.mazeTheme` (`dark | light | ui`, default `ui`) resolves to a `ThemeId` — `App.vue` passes it as `GameScreen`'s `mazeTheme` prop, `GameScreen` forwards it as the `theme` prop of `MazeCanvas`/`ReviewMap`, and those read `CANVAS_PALETTES` (`src/render/palette.ts`). `深色` = 迷宫纯黑底、墙体/光点白色. The canvases' CSS fallback is bound inline (`:style="{ background: paper }"`) so it follows the **maze** theme and never `var(--bg)` (the UI theme) — otherwise UI-light + maze-dark flashes white before the first frame.
+
+Light is a straight channel inversion (paper black↔white, ink white↔black, **identical alpha ramps**), so the near-player/edge relation flips with it.
+
+First start: `startGame()` intercepts the **first** 开始游戏 and shows the shared `OverlayPanel` (title 选择游玩模式, dark recommended, `plain` — two transparent buttons carrying their mode description as a `hint` second line) *instead of* switching screens; choosing writes `mazeTheme`, marks `INTRO_KEY` (`puzzlec.intro.v1`, deliberately **outside** the settings blob so 恢复默认 does not re-trigger it) and only then enters the game. Every later start goes straight in. `OverlayPanel` actions are `{ label, hint?, active?, primary?, onClick }`: `primary` = auto-focus (modal focus lands in the dialog), `active` = 反色实心高亮, and `plain` on the panel suppresses the filled look entirely — a focused plain button is indicated by its border instead (its hover still inverts like every other `.interactive`).
+
+Gotcha: `body { color: var(--fg); background: var(--bg) }` only ever sees the `:root` values, so descendants that merely inherit (e.g. the overlay panel's text) are re-coloured by `.app`'s own `background`/`color` declaration — re-declaring the variables alone is not enough. Never hardcode `#000`/`#fff`/`rgba(255,255,255,…)` in a screen or canvas: use the variables or `inkRgba`.
 
 **Error handling.** Gameplay code does not throw; invalid input is clamped or ignored (out-of-range walls, `Math.min/Math.max` clamps, `loadSettings` validating every field and falling back to fresh defaults).
 
@@ -109,22 +122,23 @@ There is **no** `lint` or `format` script (see Runtime/Tooling Preferences). `ty
 | File | Why it matters |
 |---|---|
 | `src/main.ts` | Entry point; mounts `App` into `#app`, imports global CSS |
-| `src/App.vue` | Screen state machine, settings watch/persist, seed + level index ownership |
+| `src/App.vue` | Screen state machine, settings watch/persist, seed + level index ownership, **theme resolution**（uiTheme/mazeTheme → `ThemeId`，订阅系统配色）, first-run theme chooser |
 | `src/types.ts` | `Level` = grid + wall segments; all cross-module contracts |
 | `src/game/maze.ts` | `generateMaze` (iterative backtracker, perfect maze), `hasVWall`/`hasHWall`, `bfs`, `farthestCell` |
 | `src/game/visibility.ts` | `castRay`, `createVisibility`/`computeVisibility`, `isVisible`; `lit` = 每条边的**可见部分**（`pushVisibleSpans` 采样 + 二分细化），固定顺序被测试断言 |
 | `src/game/collision.ts` | `PLAYER_R = 0.18`, `moveWithCollision` (substep ≤ `radius/2`, resolve X then Y) |
-| `src/game/settings.ts` | `SETTINGS_KEY`, `DEFAULT_SETTINGS`, `sizeCells`, `radiusValue`, `load/saveSettings` |
+| `src/game/settings.ts` | `SETTINGS_KEY`/`INTRO_KEY`, `DEFAULT_SETTINGS`, `UI_THEME_OPTIONS`/`MAZE_THEME_OPTIONS`/`RADIUS_OPTIONS`, `sizeCells`, `radiusValue`, `load/saveSettings`, `loadIntroSeen`/`markIntroSeen`, `prefersDarkScheme`/`subscribeSystemScheme` |
 | `src/game/trail.ts` | `TRAIL_STEP`, `createTrail` → `{ points, times, reset(x,y,t), push(x,y,t) }` (flat `[x,y,...]` + parallel `times`, reused buffers), `sampleTrail(points,times,t,out)` → 二分+线性插值 |
-| `src/components/MazeCanvas.vue` | DPR/camera/pixel math + canvas paint order; walls via `src/render/walls.ts` |
-| `src/components/ReviewMap.vue` | Full-map overview canvas: all walls (shared geometry) at uniform brightness, full trail (dim) + traversed portion (bright) + player dot; `renderFrame(ms)` replayed imperatively from the game loop |
-| `src/render/walls.ts` | `WALL_THICKNESS`, `wallLineWidth`, `wallGradient` (32-stop continuous falloff), `addLevelWalls`, `addLitWalls` — shared by both canvases |
+| `src/components/MazeCanvas.vue` | DPR/camera/pixel math + canvas paint order; walls via `src/render/walls.ts`; `theme` prop → `CANVAS_PALETTES` |
+| `src/components/ReviewMap.vue` | Full-map overview canvas: all walls (shared geometry) at uniform brightness, full trail (dim) + traversed portion (bright) + player dot; `renderFrame(ms)` replayed imperatively from the game loop; `theme` prop → `CANVAS_PALETTES` |
+| `src/render/walls.ts` | `WALL_THICKNESS`, `wallLineWidth`, `wallGradient(ctx,x,y,r,ink,peak?)` (32-stop continuous falloff; `ink` = 亮度色 rgb 文本，随主题反色), `addLevelWalls`, `addLitWalls` — shared by both canvases |
+| `src/render/palette.ts` | `CANVAS_PALETTES` / `CanvasPalette`（`paper` 底色 + `ink` 亮度色）+ `inkRgba`；两个 canvas 都按它取色 |
 | `src/screens/GameScreen.vue` | Only rAF loop, input handling, physics, trail recording, playback, win/pause/review transitions |
 | `index.html` | `#app` mount point + module script `/src/main.ts` |
 | `tsconfig.json`, `vite.config.ts`, `vitest.config.ts` | Strict-TS constraints, build target, test include pattern |
 | `task.md` | Original product brief (constraints) |
 
-Critical paint-order gotcha: in `MazeCanvas.renderFrame` everything (fan fill, walls, goal, player) is drawn inside **one** `c.save(); c.translate(ox, oy)` world-space block, closed by the final `c.restore()`. Do **not** re-apply `ox/oy` inside it, and never drop that outer transform: a light point drawn without the camera offset stays at raw world pixels while the camera scrolls, so it appears to drift away from the (correctly centred) lit area. The fan **clip** keeps its own nested `save()/restore()` (`MazeCanvas.vue:86-96`) — wall strokes sit exactly on the clip boundary, so leaving the clip active clips half of every wall line.
+Critical paint-order gotcha: in `MazeCanvas.renderFrame` everything (fan fill, walls, goal, player) is drawn inside **one** `c.save(); c.translate(ox, oy)` world-space block, closed by the final `c.restore()`. Do **not** re-apply `ox/oy` inside it, and never drop that outer transform: a light point drawn without the camera offset stays at raw world pixels while the camera scrolls, so it appears to drift away from the (correctly centred) lit area. The fan **clip** keeps its own nested `save()/restore()` (`MazeCanvas.vue:90-102`) — wall strokes sit exactly on the clip boundary, so leaving the clip active clips half of every wall line.
 
 Visibility gotchas: `prev` in the angle dedup must be initialized to `-Infinity` (not `Infinity`); `lit` holds the **visible portion** of each wall edge (a fully visible edge stays one entry; a partly occluded one is split) in a fixed order — vertical by `k` then `y`, then horizontal by `k` then `x`, spans in ascending position — and is asserted by tests; `castRay` must not apply "out-of-range = wall" lookups, since it relies on outer-ring segments existing and being `1`. Per-edge visibility is *not* decided by a single ray to the nearest point: `pushVisibleSpans` samples the edge (`SPAN_SAMPLES`), bisects each visible/occluded boundary (`SPAN_REFINE`) and drops degenerate slivers (`SPAN_MIN_CELLS`), so a wall poking past a corner is not drawn into shadow and a sliver peeking around one still is.
 
@@ -137,14 +151,14 @@ Visibility gotchas: `prev` in the angle dedup must be initialized to `-Infinity`
   - Consequence: unused locals/params fail `typecheck` and therefore `build`. Deleting a symbol's last caller requires deleting the import too.
 - `vite.config.ts`: `base: './'` (relative asset URLs — verify `dist/index.html` uses `./assets/...`), `vue()` plugin only, `build.target: es2022`.
 - Import with relative paths (`../types`, `../game/maze`) — there is no alias setup.
-- **Absent tooling (verify before assuming it exists):** no ESLint, no Prettier, no Biome, no `.editorconfig`, no CI (`.github/` does not exist), no git hooks, no Makefile/scripts dir, no README/LICENSE. There is **no `.git` directory at all** — `git` commands fail in this root.
+- **Absent tooling (verify before assuming it exists):** no ESLint, no Prettier, no Biome, no `.editorconfig`, no CI (`.github/` does not exist), no active git hooks (`.git/hooks` holds only the default `.sample` files), no Makefile/scripts dir, no README/LICENSE. A git repo **does** exist (`.git/`, branch `main`, remote `origin` = `git@github.com:Kuriyona/PuzzleC.git`), so `git` commands work in this root.
 - Match existing style manually (2-space indent, single quotes, no semicolons, ~100 col width, Chinese comments).
 
 ## Testing & QA
 
 - Framework: **Vitest 5**, `vitest.config.ts` → `{ test: { environment: 'node', include: ['tests/**/*.test.ts'] } }`. `globals` is **off**: every file imports `{ describe, expect, it } from 'vitest'` explicitly. No setup files, no coverage config, no DOM environment.
 - Baseline: **5 files / 45 passing cases in ~0.5s** (`tests/maze.test.ts` 10, `tests/visibility.test.ts` 11, `tests/collision.test.ts` 6, `tests/trail.test.ts` 11, `tests/walls.test.ts` 7). Keep it green; `pnpm test` runs one-shot (CI-style).
-- Scope: only the pure modules `src/game/{maze,visibility,collision,trail}.ts`, `src/render/walls.ts` (+ `src/types.ts`) are covered. Vue components, `settings.ts` persistence, and `rng.ts` have **no** tests — add them deliberately if behavior changes there.
+- Scope: only the pure modules `src/game/{maze,visibility,collision,trail}.ts`, `src/render/walls.ts` (+ `src/types.ts`) are covered. Vue components, `settings.ts` persistence, `src/render/palette.ts`, and `rng.ts` have **no** tests — add them deliberately if behavior changes there.
 - `tests/helpers.ts` is a plain module (not matched as a test). It exports `LevelSpec`, `makeLevel(spec): Level`, and `visibleMask(level, pos, radius): string[]`.
   - `makeLevel({ cols, rows, v: [[lineX, row], ...], h: [[lineY, col], ...], start?, goal? })` builds levels with the outer ring always walled and the interior open except for explicitly listed segments — so visibility/collision can be asserted against hand-computed geometry, independent of `generateMaze`.
   - `visibleMask` renders an `isVisible` grid as `'#'`/`'.'` strings for readable assertions.

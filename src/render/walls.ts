@@ -1,4 +1,5 @@
 import type { Level } from '../types'
+import { inkRgba } from './palette'
 
 /**
  * 墙体渲染（纯几何 + 渐变构造，只依赖 Canvas 2D 接口，不涉及 Vue）。
@@ -24,18 +25,20 @@ export function wallLineWidth(tile: number): number {
   return Math.max(MIN_WALL_PX, tile * WALL_THICKNESS)
 }
 
-/** 供墙段描边使用的径向渐变：亮心在 (x,y)，半径 r 处衰减为 0。 */
+/** 供墙段描边使用的径向渐变：亮心在 (x,y)，半径 r 处衰减为 0。
+ *  ink 为亮度色 rgb 分量文本（深色主题白、浅色主题黑），由调用方随主题给出。 */
 export function wallGradient(
   ctx: CanvasRenderingContext2D,
   x: number,
   y: number,
   r: number,
+  ink: string,
   peak: number = WALL_PEAK,
 ): CanvasGradient {
   const g = ctx.createRadialGradient(x, y, 0, x, y, r)
   for (let i = 0; i <= WALL_STOPS; i++) {
     const t = i / WALL_STOPS
-    g.addColorStop(t, `rgba(255,255,255,${Math.pow(1 - t, WALL_FALLOFF) * peak})`)
+    g.addColorStop(t, inkRgba(ink, Math.pow(1 - t, WALL_FALLOFF) * peak))
   }
   return g
 }

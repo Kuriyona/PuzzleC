@@ -1,13 +1,16 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, watch } from 'vue'
-import type { Level, Vec2 } from '../types'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import type { Level, ThemeId, Vec2 } from '../types'
 import { computeVisibility, createVisibility, isVisible } from '../game/visibility'
 import { PLAYER_R } from '../game/collision'
 import { addLitWalls, wallGradient, wallLineWidth } from '../render/walls'
+import { CANVAS_PALETTES, inkRgba } from '../render/palette'
 
-const props = defineProps<{ level: Level; radius: number; animations: boolean }>()
+const props = defineProps<{ level: Level; radius: number; animations: boolean; theme: ThemeId }>()
 
 const canvasRef = ref<HTMLCanvasElement | null>(null)
+/** 元素底色用迷宫主题的 paper（不是 --bg，那是 UI 主题）：首帧之前不留异色底 */
+const paper = computed(() => CANVAS_PALETTES[props.theme].paper)
 
 let ctx: CanvasRenderingContext2D | null = null
 let side = 0
@@ -38,12 +41,13 @@ function renderFrame(now: number, dt: number, player: Vec2): void {
   const c = ctx
   if (!cvs || !c) return
   const level = props.level
+  const pal = CANVAS_PALETTES[props.theme]
   const tile = tileSize()
   const worldW = level.cols * tile
   const worldH = level.rows * tile
 
   c.setTransform(dpr, 0, 0, dpr, 0, 0)
-  c.fillStyle = '#000'
+  c.fillStyle = pal.paper
   c.fillRect(0, 0, side, side)
 
   const pxw = (player.x + 0.5) * tile
@@ -76,11 +80,11 @@ function renderFrame(now: number, dt: number, player: Vec2): void {
 
   // 视野 / 墙体 / 目标 / 光点统一在世界坐标系绘制（单次相机偏移，避免漏加导致漂移）
   const grad = c.createRadialGradient(pxw, pyw, 0, pxw, pyw, R)
-  grad.addColorStop(0, 'rgba(255,255,255,0.42)')
-  grad.addColorStop(0.25, 'rgba(255,255,255,0.27)')
-  grad.addColorStop(0.5, 'rgba(255,255,255,0.15)')
-  grad.addColorStop(0.75, 'rgba(255,255,255,0.05)')
-  grad.addColorStop(1, 'rgba(255,255,255,0)')
+  grad.addColorStop(0, inkRgba(pal.ink, 0.42))
+  grad.addColorStop(0.25, inkRgba(pal.ink, 0.27))
+  grad.addColorStop(0.5, inkRgba(pal.ink, 0.15))
+  grad.addColorStop(0.75, inkRgba(pal.ink, 0.05))
+  grad.addColorStop(1, inkRgba(pal.ink, 0))
 
   // 裁剪单独 save/restore：墙体正好压在扇形边界上，共用会被削掉一半
   c.save()
@@ -101,7 +105,7 @@ function renderFrame(now: number, dt: number, player: Vec2): void {
   c.lineCap = 'round'
   c.lineJoin = 'round'
   c.lineWidth = wallLineWidth(tile)
-  c.strokeStyle = wallGradient(c, pxw, pyw, R)
+  c.strokeStyle = wallGradient(c, pxw, pyw, R, pal.ink)
   c.beginPath()
   addLitWalls(c, vis.lit, tile)
   c.stroke()
@@ -117,7 +121,7 @@ function renderFrame(now: number, dt: number, player: Vec2): void {
     c.save()
     c.translate((level.goal.x + 0.5) * tile, (level.goal.y + 0.5) * tile)
     c.rotate(Math.PI / 4)
-    c.strokeStyle = `rgba(255,255,255,${alpha})`
+    c.strokeStyle = inkRgba(pal.ink, alpha)
     c.lineWidth = Math.max(1.5, tile * 0.06)
     c.strokeRect(-r * 0.8, -r * 0.8, r * 1.6, r * 1.6)
     c.restore()
@@ -127,7 +131,7 @@ function renderFrame(now: number, dt: number, player: Vec2): void {
     tile *
     PLAYER_R *
     (props.animations ? 1 + 0.07 * Math.sin((now / 1000) * ((Math.PI * 2) / 1.6)) : 1)
-  c.fillStyle = '#fff'
+  c.fillStyle = inkRgba(pal.ink, 1)
   c.beginPath()
   c.arc(pxw, pyw, rr, 0, Math.PI * 2)
   c.fill()
@@ -162,7 +166,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <canvas ref="canvasRef" class="maze"></canvas>
+  <canvas ref="canvasRef" class="maze" :style="{ background: paper }"></canvas>
 </template>
 
 <style scoped>
@@ -170,7 +174,6 @@ onUnmounted(() => {
   display: block;
   width: min(92vw, 74vh, 860px);
   height: min(92vw, 74vh, 860px);
-  background: #000;
   border: 1px solid var(--line);
 }
 </style>

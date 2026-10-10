@@ -1,8 +1,16 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
-import type { Screen, Settings } from './types'
-import { loadSettings, saveSettings } from './game/settings'
+import { computed, onUnmounted, ref, watch } from 'vue'
+import type { Screen, Settings, ThemeId } from './types'
+import {
+  loadIntroSeen,
+  loadSettings,
+  markIntroSeen,
+  prefersDarkScheme,
+  saveSettings,
+  subscribeSystemScheme,
+} from './game/settings'
 import { randomSeed } from './game/rng'
+import OverlayPanel from './components/OverlayPanel.vue'
 import MenuScreen from './screens/MenuScreen.vue'
 import SettingsScreen from './screens/SettingsScreen.vue'
 import GameScreen from './screens/GameScreen.vue'
@@ -14,7 +22,58 @@ const levelIndex = ref<number>(1)
 
 watch(settings, () => saveSettings(settings.value), { deep: true })
 
+// 系统配色：uiTheme === 'system' 时跟着它走（媒体查询变化要能实时反映）
+const systemDark = ref(prefersDarkScheme())
+onUnmounted(subscribeSystemScheme((dark) => (systemDark.value = dark)))
+
+/** UI 主题解析：'system' → 系统配色，否则就是所选值 */
+const uiTheme = computed<ThemeId>(() =>
+  settings.value.uiTheme === 'system'
+    ? systemDark.value
+      ? 'dark'
+      : 'light'
+    : settings.value.uiTheme,
+)
+/** 迷宫主题解析：'ui' → 跟随上面解析出的 UI 主题 */
+const mazeTheme = computed<ThemeId>(() =>
+  settings.value.mazeTheme === 'ui' ? uiTheme.value : settings.value.mazeTheme,
+)
+
+// 首次开始游戏时的主题引导：选一次即记档，之后只在设置里改
+const introSeen = ref(loadIntroSeen())
+const askingIntro = ref(false)
+const introLines = ['选择后仍可在设置里随时更改']
+const introActions = [
+  {
+    label: '深色游玩（推荐）',
+    hint: '迷宫背景为纯黑，墙体与光点为白色',
+    primary: true,
+    onClick: () => chooseMazeTheme('dark'),
+  },
+  {
+    label: '浅色游玩',
+    hint: '迷宫背景为纯白，墙体与光点为黑色',
+    onClick: () => chooseMazeTheme('light'),
+  },
+]
+
+function chooseMazeTheme(theme: ThemeId): void {
+  settings.value = { ...settings.value, mazeTheme: theme }
+  markIntroSeen()
+  introSeen.value = true
+  askingIntro.value = false
+  beginGame()
+}
+
 function startGame(): void {
+  if (!introSeen.value) {
+    askingIntro.value = true
+    return
+  }
+  beginGame()
+}
+
+function beginGame(): void {
   seed.value = randomSeed()
   levelIndex.value = 1
   screen.value = 'game'
@@ -27,7 +86,10 @@ function nextLevel(): void {
 </script>
 
 <template>
-  <div class="app" :class="{ 'no-anim': !settings.animations }">
+  <div
+    class="app"
+    :class="{ 'no-anim': !settings.animations, 'theme-light': uiTheme === 'light' }"
+  >
     <Transition name="screen" mode="out-in">
       <MenuScreen
         v-if="screen === 'menu'"
@@ -45,10 +107,19 @@ function nextLevel(): void {
         :settings="settings"
         :seed="seed"
         :level-index="levelIndex"
+        :maze-theme="mazeTheme"
         @next="nextLevel"
         @exit="screen = 'menu'"
       />
     </Transition>
+
+    <OverlayPanel
+      v-if="askingIntro"
+      title="选择游玩模式"
+      plain
+      :lines="introLines"
+      :actions="introActions"
+    />
   </div>
 </template>
 
@@ -58,5 +129,9 @@ function nextLevel(): void {
   display: grid;
   place-items: center;
   padding: 24px;
+  /* 主题变量在 .app 上（.theme-light）就地解析：body 上的 var() 只认 :root 的值，
+     不重新声明的话浅色主题下所有“继承 body 颜色”的文字仍是深色主题的色值 */
+  background: var(--bg);
+  color: var(--fg);
 }
 </style>

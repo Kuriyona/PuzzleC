@@ -3,11 +3,16 @@ import { nextTick, onMounted, ref } from 'vue'
 
 interface Action {
   label: string
+  /** 第二行小字说明 */
+  hint?: string
+  /** 反色高亮（实心），与是否聚焦无关 */
+  active?: boolean
+  /** 主操作：挂载后自动聚焦 */
   primary?: boolean
   onClick: () => void
 }
 
-defineProps<{ title: string; lines: string[]; actions: Action[] }>()
+defineProps<{ title: string; lines: string[]; actions: Action[]; plain?: boolean }>()
 
 const primaryButton = ref<HTMLButtonElement | null>(null)
 
@@ -28,16 +33,17 @@ onMounted(async () => {
       <ul v-if="lines.length" class="lines">
         <li v-for="(line, i) in lines" :key="i">{{ line }}</li>
       </ul>
-      <div class="actions">
+      <div class="actions" :class="{ 'actions-plain': plain }">
         <button
           v-for="(action, i) in actions"
           :key="i"
           :ref="(el) => capturePrimary(el, action)"
           class="interactive act"
-          :class="{ 'is-active': action.primary }"
+          :class="{ 'is-active': action.active }"
           @click="action.onClick()"
         >
-          {{ action.label }}
+          <span class="act-label">{{ action.label }}</span>
+          <span v-if="action.hint" class="act-hint">{{ action.hint }}</span>
         </button>
       </div>
     </div>
@@ -50,7 +56,7 @@ onMounted(async () => {
   inset: 0;
   display: grid;
   place-items: center;
-  background: rgba(0, 0, 0, 0.86);
+  background: var(--scrim);
   z-index: 10;
 }
 
@@ -91,9 +97,25 @@ onMounted(async () => {
 }
 
 .act {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   padding: 11px 14px;
   font-size: 13px;
   letter-spacing: 0.16em;
   text-align: left;
+}
+
+.act-hint {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  opacity: 0.62;
+}
+
+/* 透明按钮组：默认与聚焦都不填实心色，聚焦只用描边提示（hover 仍按全局约定反色） */
+.actions-plain .act:focus-visible {
+  background: transparent;
+  color: var(--fg);
+  border-color: var(--fg);
 }
 </style>

@@ -7,11 +7,26 @@
   --panel: #0a0a0a;
   --inv-bg: #ededed;
   --inv-fg: #000;
+  --scrim: rgba(0, 0, 0, 0.86);
   --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
   --dur: 220ms;
   --dur-fast: 120ms;
   --font-ui: 'Inter', 'Segoe UI', 'Noto Sans SC', system-ui, sans-serif;
   --font-mono: ui-monospace, 'SFMono-Regular', Consolas, monospace;
+}
+
+/* 浅色主题：整套调色板反色，由 App 根节点的 .theme-light 打开。
+   主菜单自带同款白色面板（两种主题下都是白底），因此不受这里影响 */
+.theme-light {
+  --bg: #fff;
+  --fg: #000;
+  --fg-dim: #6e6e6e;
+  --fg-faint: #9d9d9d;
+  --line: #e4e4e4;
+  --panel: #f5f5f5;
+  --inv-bg: #000;
+  --inv-fg: #fff;
+  --scrim: rgba(255, 255, 255, 0.88);
 }
 
 * {

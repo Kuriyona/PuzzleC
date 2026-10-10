@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { Settings } from '../types'
 import { SIZE_OPTIONS } from '../game/maze'
-import { RADIUS_OPTIONS, DEFAULT_SETTINGS } from '../game/settings'
+import { MAZE_THEME_OPTIONS, RADIUS_OPTIONS, UI_THEME_OPTIONS, DEFAULT_SETTINGS } from '../game/settings'
 
 const model = defineModel<Settings>({ required: true })
 defineEmits<{ back: [] }>()
@@ -23,6 +23,36 @@ function restoreDefaults(): void {
     </header>
 
     <div class="rows">
+      <div class="row">
+        <span class="label">界面主题</span>
+        <div class="seg">
+          <button
+            v-for="opt in UI_THEME_OPTIONS"
+            :key="opt.id"
+            class="interactive seg-btn"
+            :class="{ 'is-active': model.uiTheme === opt.id }"
+            @click="apply({ uiTheme: opt.id })"
+          >
+            {{ opt.label }}
+          </button>
+        </div>
+      </div>
+
+      <div class="row">
+        <span class="label">迷宫主题</span>
+        <div class="seg">
+          <button
+            v-for="opt in MAZE_THEME_OPTIONS"
+            :key="opt.id"
+            class="interactive seg-btn"
+            :class="{ 'is-active': model.mazeTheme === opt.id }"
+            @click="apply({ mazeTheme: opt.id })"
+          >
+            {{ opt.label }}
+          </button>
+        </div>
+      </div>
+
       <div class="row">
         <span class="label">迷宫尺寸</span>
         <div class="seg">
